@@ -18,7 +18,7 @@ module ::TicketingSystem
     def initialize(user:, params: {})
       @user = user
       @staff = Permissions.staff?(user)
-      @params = (params || {}).with_indifferent_access
+      @params = normalize_params(params)
     end
 
     def call
@@ -234,6 +234,35 @@ module ::TicketingSystem
 
     def split_param(key)
       @params[key].to_s.split(",").map(&:strip).reject(&:empty?).uniq
+    end
+
+    # `params` arrives as `ActionController::Parameters` from the controller, and
+    # as a plain Hash from anywhere else (a rake task, a console, a spec).
+    #
+    # `ActionController::Parameters` is NOT a Hash and does NOT answer to
+    # `with_indifferent_access`. It is `class Parameters` — no superclass but
+    # Object — and it delegates only a handful of readers (`keys`, `empty?`,
+    # `include?`, `as_json`, `to_s`, `each_key`) to the internal
+    # HashWithIndifferentAccess it wraps. Everything else falls through to
+    # Object, so calling `with_indifferent_access` on it raised
+    #
+    #     NoMethodError: undefined method 'with_indifferent_access'
+    #                    for an instance of ActionController::Parameters
+    #
+    # inside this constructor — before a single query ran. That is why
+    # `/tickets/api/tickets` answered 500 while `/tickets/api/meta`, which never
+    # builds a TicketQuery, stayed at 200: the failure was in parameter
+    # normalisation, not in the query, the schema or the serializer.
+    #
+    # `to_unsafe_h` is the documented way to read the values without calling
+    # `permit`. "Unsafe" names the mass-assignment risk, and there is none here:
+    # every value is read as a filter and validated against a whitelist
+    # (`Constants::ALL_SCOPES`, `Constants::SORT_ORDERS`, `Constants::STATUSES`)
+    # before it reaches a query. Duck-typed rather than `is_a?` so a Hash-like
+    # stand-in from a caller keeps working.
+    def normalize_params(raw)
+      hash = raw.respond_to?(:to_unsafe_h) ? raw.to_unsafe_h : raw
+      (hash || {}).with_indifferent_access
     end
   end
 end

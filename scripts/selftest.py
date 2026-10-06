@@ -203,6 +203,16 @@ MUTATIONS: list[Mutation] = [
         old='    icon: "ticket",',
         new='    icon: "ticket-alt",',
     ),
+    Mutation(
+        what="把控制器参数当成 Hash 用（Parameters 没有 with_indifferent_access）",
+        script=VALIDATE,
+        expect="没有 `with_indifferent_access`",
+        target="lib/ticketing_system/ticket_query.rb",
+        # 把规整那一行换回出问题之前的写法。这条检查比的是「有没有把 params
+        # 当 Hash 用」，所以必须注入在代码行上，而不是注释里 —— 注释被显式跳过。
+        old="      @params = normalize_params(params)",
+        new="      @params = params.with_indifferent_access",
+    ),
 ]
 
 

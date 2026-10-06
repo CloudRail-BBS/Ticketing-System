@@ -946,6 +946,73 @@ def check_icon_names() -> None:
 
 
 # ---------------------------------------------------------------------------
+# L. 控制器参数不能当成 Hash 用
+# ---------------------------------------------------------------------------
+
+# `ActionController::Parameters` 不是 Hash，也不继承 HashWithIndifferentAccess。
+# 它是 `class Parameters`（父类 Object），只把 keys / empty? / exclude? /
+# include? / as_json / to_s / each_key 这几个读取器委托给内部包着的
+# HashWithIndifferentAccess，其余一律落到 Object。
+#
+# 所以下面这些「Hash 专属」方法在它上面全是 NoMethodError：
+PARAMS_HASH_ONLY_METHODS = (
+    "with_indifferent_access",
+    "symbolize_keys",
+    "deep_symbolize_keys",
+    "stringify_keys",
+)
+
+
+def check_params_are_normalised() -> None:
+    """把 `params` 当 Hash 用是一个 500，而且只在真有请求打到那一行的时候。
+
+    这是这个插件真实踩过的坑，也是最难查的一类：报错发生在**参数规整**阶段，
+    比任何查询都早。所以它看起来不像查询问题、不像 schema 问题、也不像序列化
+    问题 —— 而它的症状又极其具体：`/tickets/api/tickets` 500，而
+    `/tickets/api/meta` 200。
+
+    两个端点共享鉴权、共享 `Permissions`、共享序列化基类，唯一的区别是前者会
+    构造 `TicketQuery`，而那个构造器的第一件事就是
+    `(params || {}).with_indifferent_access`。
+
+    这类 bug 读代码发现不了：`params` 看着就像个 Hash，`with_indifferent_access`
+    看着就像个合法的 Hash 方法，两边单独看都是对的。只有把「控制器传进来的是
+    什么类型」和「这个类型有哪些方法」放在一起才看得出来。
+
+    清单刻意只收**确定不存在**的方法。`merge` / `except` / `slice` / `to_h` 不列：
+    新版 Rails 给 Parameters 加过其中几个，列进来就会产生假警报 —— 而一个会误报
+    的闸门比没有闸门更糟，它会训练人忽略它。
+
+    匹配的接收者必须是裸的 `params`：`@params.` 前面有 `@`，不算 —— 那通常是个
+    已经规整过的实例变量，在它上面调 `with_indifferent_access` 是合法的。
+    反过来，如果某个方法自己有一个**装着 Hash 的局部变量**叫 `params`，这里会
+    误报；把它改名即可，而这也正是这个仓库想要的读法。
+    """
+    pattern = re.compile(
+        r"(?<![@\w.])params\.(" + "|".join(PARAMS_HASH_ONLY_METHODS) + r")\b"
+    )
+
+    for path in sources("app/**/*.rb") + sources("lib/**/*.rb"):
+        text = read(path)
+        for match in pattern.finditer(text):
+            line_start = text.rfind("\n", 0, match.start()) + 1
+            line_end = text.find("\n", match.start())
+            line = text[line_start : line_end if line_end != -1 else len(text)]
+
+            # 注释里讨论这个方法名是正常的 —— 这个检查自己的说明就在讨论它。
+            if line.lstrip().startswith("#"):
+                continue
+
+            line_no = text.count("\n", 0, match.start()) + 1
+            error(
+                rel(path),
+                f"第 {line_no} 行把 `params` 当成 Hash 用了："
+                f"`ActionController::Parameters` 没有 `{match.group(1)}`，"
+                f"真有请求打到这一行就是 500。先 `params.to_unsafe_h` 再规整",
+            )
+
+
+# ---------------------------------------------------------------------------
 # 主流程
 # ---------------------------------------------------------------------------
 
@@ -970,6 +1037,7 @@ def main() -> int:
         ("前端相对导入可达", check_relative_imports),
         ("已提交的迁移未被修改", check_migrations_are_append_only),
         ("图标名能真的渲染出来", check_icon_names),
+        ("控制器参数没被当成 Hash 用", check_params_are_normalised),
     ]
 
     passed: list[str] = []

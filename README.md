@@ -485,9 +485,9 @@ sh scripts/selftest.sh
 | 阶段 | 内容 |
 | --- | --- |
 | 1/4 | `scripts/check-templates.py` — `.gjs` 模板的作用域，以及剥掉模板后的 JS 语法 |
-| 2/4 | `scripts/validate.py` — 14 项跨文件静态一致性检查 |
+| 2/4 | `scripts/validate.py` — 15 项跨文件静态一致性检查 |
 | 3/4 | `scripts/check-ruby.rb` — 44 个 `.rb` 的语法、`.erb` 的可编译性，以及 Ruby 解析器的警告 |
-| 4/4 | `scripts/selftest.py` — 变异自测：向代码注入 15 处缺陷，确认前三个校验器确实报错，然后恢复文件 |
+| 4/4 | `scripts/selftest.py` — 变异自测：向代码注入 16 处缺陷，确认前三个校验器确实报错，然后恢复文件 |
 
 也可以用 `npm run lint`（等价）、`npm run validate`、`npm run templates`、`npm run ruby`、`npm run mutation` 单独跑某一项。
 
@@ -509,11 +509,12 @@ sh scripts/selftest.sh
 | `.gjs` 里用了未 import 的辅助函数 | **整个插件 bundle** 被换成一行 `throw new Error("… not in scope …")`，所有组件失效 |
 | 哈希里同一个键写了两遍 | 前者被静默覆盖（真实案例：`status: 400, status: "bogus"` 让 HTTP 状态码变成了 `"bogus"`，500 而不是 400） |
 | 已发布的迁移被原地改写 | 改动只对之后安装的库生效，已有库拿不到新列，代码一读就是 Postgres `undefined column`——报错指向查询，不指向「列没建」（真实案例，见 `..._000002` 顶部的注释） |
+| 把控制器的 `params` 当成 Hash 用 | 不是 404、不是 400，而是**那个端点** 500：`ActionController::Parameters` 没有 `with_indifferent_access` 这类 Hash 方法，报错发生在参数规整阶段，比任何查询都早（真实案例：`/tickets/api/tickets` 500 而 `/tickets/api/meta` 200） |
 | 图标名不在核心精灵里 | `d-icon` 不报错、不警告，只是画出一块空白——侧边栏那行看着像「忘了配图标」，通知条目空一块（真实案例：`ticket`，见 `scripts/discourse-icons.txt`） |
 
 没有一条会写日志，没有一条会让测试变红。所以这些检查必须在这里、在提交之前跑一遍。
 
-`scripts/validate.py` 的 14 项检查：YAML 可解析与客户端 `js:` 包装、两个语种的键集对齐（含叶子类型）、前端 `i18n()` 调用、服务端 `I18n.t` / `Errors::*` / `errors.add`、`Errors::*` 类名、`Errors::*` 插值参数与文案占位符、`site_settings` 与文案双向、`site_settings` 与 Ruby 用法双向、枚举与文案（`STATUSES` / `PRIORITIES` 查两个语种的**客户端**文案，`EVENT_KINDS` 只查**服务端**文案——它的标签由 `EventSerializer` 在服务端查，去客户端文案里找只会报假错）、`plugin.rb` 元数据、前端 API 路径与 `config/routes.rb`、前端相对导入可达性、已提交的迁移未被修改（比工作区与 `HEAD` 的差异，所以改动一旦单独提交就自动变绿）、图标名能真的渲染出来（`scripts/discourse-icons.txt` 是 `SvgSprite::SVG_ICONS` 的快照，再加上本插件 `register_svg_icon` 贡献的名字）。
+`scripts/validate.py` 的 15 项检查：YAML 可解析与客户端 `js:` 包装、两个语种的键集对齐（含叶子类型）、前端 `i18n()` 调用、服务端 `I18n.t` / `Errors::*` / `errors.add`、`Errors::*` 类名、`Errors::*` 插值参数与文案占位符、`site_settings` 与文案双向、`site_settings` 与 Ruby 用法双向、枚举与文案（`STATUSES` / `PRIORITIES` 查两个语种的**客户端**文案，`EVENT_KINDS` 只查**服务端**文案——它的标签由 `EventSerializer` 在服务端查，去客户端文案里找只会报假错）、`plugin.rb` 元数据、前端 API 路径与 `config/routes.rb`、前端相对导入可达性、已提交的迁移未被修改（比工作区与 `HEAD` 的差异，所以改动一旦单独提交就自动变绿）、图标名能真的渲染出来（`scripts/discourse-icons.txt` 是 `SvgSprite::SVG_ICONS` 的快照，再加上本插件 `register_svg_icon` 贡献的名字）、控制器参数没被当成 Hash 用（`params.with_indifferent_access` 这类 Hash 专属方法在 `ActionController::Parameters` 上并不存在，命中的端点会 500——清单刻意只收确定不存在的名字，会误报的闸门比没有闸门更糟）。
 
 ### 几条容易踩的约定
 
@@ -527,6 +528,8 @@ sh scripts/selftest.sh
 - **迁移只增不改。** 迁移一旦提交就不能再动——Rails 把它记在 `schema_migrations` 里，**永远不会重跑**，所以改动只对「之后才安装的库」生效，对已经跑过它的库完全无效。两边于是永久分叉，而分叉的后果取决于每个库是在哪一天装的。要改结构就新加一个迁移（`..._000007` 就是为此存在的，`..._000002` 顶部的注释记录了它被原地改过的那一次）。闸门里有一条检查专门盯这个：工作区出现「已提交的迁移被修改」就报错，把这次修改单独提交之后检查自动变绿。
 
 ### 排查
+
+**只有 `/tickets/api/tickets` 500，`/tickets/api/meta` 正常。** 这不是 schema 问题——缺列会让两个端点一起挂（见下一条）。这条症状的判别力在于：两个端点共享鉴权、共享 `Permissions`、共享序列化基类，唯一多出来的东西是「列表会构造 `TicketQuery`」。所以去看 `TicketQuery`，尤其是它的构造器：它拿到的是控制器的 `params`，而 `ActionController::Parameters` **不是 Hash**。真实案例是构造器里的 `(params || {}).with_indifferent_access` —— `Parameters` 只把 `keys` / `empty?` / `include?` 这几个读取器委托给内部包着的 `HashWithIndifferentAccess`，其余一律落到 `Object`，所以这一行在**任何查询之前**就抛 `NoMethodError`，症状和 schema、查询、序列化全都无关。改法是先 `params.to_unsafe_h` 再规整（见 `lib/ticketing_system/ticket_query.rb` 的 `normalize_params`）。闸门里有一条检查专门盯这个。
 
 **工单页 500，日志里是 Postgres 的 `undefined column`（`/tickets/api/tickets` 和 `/tickets/api/meta` 一起挂）。** 代码读的列在库里不存在，几乎总是「拉了新代码但没跑迁移」。Discourse 只在 `./launcher rebuild app` 时跑插件迁移，`restart` 不会。进容器确认：
 
