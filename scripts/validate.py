@@ -25,6 +25,8 @@ from __future__ import annotations
 
 import argparse
 import re
+import shutil
+import subprocess
 import sys
 from pathlib import Path
 
@@ -796,6 +798,72 @@ def check_relative_imports() -> None:
 
 
 # ---------------------------------------------------------------------------
+# J. 已提交的迁移不得修改
+# ---------------------------------------------------------------------------
+
+
+def check_migrations_are_append_only() -> None:
+    """迁移只增不改 —— 已经提交过的迁移再动一下，就是一个不会报错的故障。
+
+    这个检查是一次真实故障留下的。有人把「工单上的两个共享未读计数器」换成
+    「每人一行的读标记」时，直接改了已经发布、而且已经在用户的库里跑过的
+    `20261006000002`，没有新加迁移。
+
+    Rails 把跑过的迁移记在 `schema_migrations` 里，**永远不会重跑它**。于是
+    改动只对「之后才安装的库」生效，已跑过它的库纹丝不动：新代码要的三个列
+    在既有库里根本不存在，一读就是 Postgres 的 undefined column / NoMethodError，
+    而报错指向查询、不指向「列没建」—— 排查方向一开始就是错的。
+
+    这类 bug 读代码发现不了，两边各自看都是对的，只有把「库是怎么来的」和
+    「代码要什么」放在一起才看得出来。所以它只能靠一条机械规则拦住。
+
+    比的是工作区与 HEAD 的差异。因此改动一旦被单独提交，检查自动变绿 —— 这
+    不是留了个后门，而是这个检查要的正是「这次修改必须是有意为之、且能被单独
+    看见」，而不是夹带在别的改动里。
+
+    新增迁移不受影响：`git diff` 不列未跟踪文件，已 `git add` 的新文件是 A，
+    也被 `--diff-filter=MDR` 排除在外。
+    """
+    if shutil.which("git") is None:
+        warn("db/migrate", "PATH 里没有 git：跳过「已提交的迁移不得修改」检查")
+        return
+
+    diff = subprocess.run(
+        [
+            "git",
+            "-C",
+            str(ROOT),
+            "diff",
+            "HEAD",
+            "--name-only",
+            "--diff-filter=MDR",
+            "--",
+            "db/migrate",
+        ],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+
+    # 没有提交历史（tarball、刚 init 的仓库）时 git diff HEAD 会失败，
+    # 那是环境问题，不是代码问题。
+    if diff.returncode != 0:
+        warn("db/migrate", "git diff 不可用：跳过「已提交的迁移不得修改」检查")
+        return
+
+    for path in diff.stdout.splitlines():
+        path = path.strip()
+        if not path:
+            continue
+        error(
+            path,
+            "已提交的迁移被修改了。迁移只增不改：Rails 不会重跑它，改动只对"
+            "之后安装的库生效，已有库会与代码永久分叉。请新加一个迁移",
+        )
+
+
+# ---------------------------------------------------------------------------
 # 主流程
 # ---------------------------------------------------------------------------
 
@@ -818,6 +886,7 @@ def main() -> int:
         ("plugin.rb 元数据", check_plugin_metadata),
         ("前端 API 路径 ↔ config/routes.rb", check_api_paths),
         ("前端相对导入可达", check_relative_imports),
+        ("已提交的迁移未被修改", check_migrations_are_append_only),
     ]
 
     passed: list[str] = []

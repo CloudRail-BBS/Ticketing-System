@@ -183,6 +183,15 @@ MUTATIONS: list[Mutation] = [
         old="      auto_closed\n    ].freeze",
         new="      auto_closed\n      selftest_probe\n    ].freeze",
     ),
+    Mutation(
+        what="已提交的迁移被原地修改（Rails 不会重跑，旧库拿不到新列）",
+        script=VALIDATE,
+        expect="迁移只增不改",
+        target="db/migrate/20261006000003_create_ticketing_system_messages.rb",
+        # 追加而不是改一行：追加不需要猜文件里已有的内容，恢复时也只需写回原字节。
+        # 内容不重要 —— 这条检查比的是「工作区与 HEAD 的差异」，改一个注释也算改。
+        append="\n# selftest probe\n",
+    ),
 ]
 
 
