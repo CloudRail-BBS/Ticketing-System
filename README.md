@@ -485,9 +485,9 @@ sh scripts/selftest.sh
 | 阶段 | 内容 |
 | --- | --- |
 | 1/4 | `scripts/check-templates.py` — `.gjs` 模板的作用域，以及剥掉模板后的 JS 语法 |
-| 2/4 | `scripts/validate.py` — 13 项跨文件静态一致性检查 |
+| 2/4 | `scripts/validate.py` — 14 项跨文件静态一致性检查 |
 | 3/4 | `scripts/check-ruby.rb` — 44 个 `.rb` 的语法、`.erb` 的可编译性，以及 Ruby 解析器的警告 |
-| 4/4 | `scripts/selftest.py` — 变异自测：向代码注入 14 处缺陷，确认前三个校验器确实报错，然后恢复文件 |
+| 4/4 | `scripts/selftest.py` — 变异自测：向代码注入 15 处缺陷，确认前三个校验器确实报错，然后恢复文件 |
 
 也可以用 `npm run lint`（等价）、`npm run validate`、`npm run templates`、`npm run ruby`、`npm run mutation` 单独跑某一项。
 
@@ -509,10 +509,11 @@ sh scripts/selftest.sh
 | `.gjs` 里用了未 import 的辅助函数 | **整个插件 bundle** 被换成一行 `throw new Error("… not in scope …")`，所有组件失效 |
 | 哈希里同一个键写了两遍 | 前者被静默覆盖（真实案例：`status: 400, status: "bogus"` 让 HTTP 状态码变成了 `"bogus"`，500 而不是 400） |
 | 已发布的迁移被原地改写 | 改动只对之后安装的库生效，已有库拿不到新列，代码一读就是 Postgres `undefined column`——报错指向查询，不指向「列没建」（真实案例，见 `..._000002` 顶部的注释） |
+| 图标名不在核心精灵里 | `d-icon` 不报错、不警告，只是画出一块空白——侧边栏那行看着像「忘了配图标」，通知条目空一块（真实案例：`ticket`，见 `scripts/discourse-icons.txt`） |
 
 没有一条会写日志，没有一条会让测试变红。所以这些检查必须在这里、在提交之前跑一遍。
 
-`scripts/validate.py` 的 13 项检查：YAML 可解析与客户端 `js:` 包装、两个语种的键集对齐（含叶子类型）、前端 `i18n()` 调用、服务端 `I18n.t` / `Errors::*` / `errors.add`、`Errors::*` 类名、`Errors::*` 插值参数与文案占位符、`site_settings` 与文案双向、`site_settings` 与 Ruby 用法双向、枚举与文案（`STATUSES` / `PRIORITIES` 查两个语种的**客户端**文案，`EVENT_KINDS` 只查**服务端**文案——它的标签由 `EventSerializer` 在服务端查，去客户端文案里找只会报假错）、`plugin.rb` 元数据、前端 API 路径与 `config/routes.rb`、前端相对导入可达性、已提交的迁移未被修改（比工作区与 `HEAD` 的差异，所以改动一旦单独提交就自动变绿）。
+`scripts/validate.py` 的 14 项检查：YAML 可解析与客户端 `js:` 包装、两个语种的键集对齐（含叶子类型）、前端 `i18n()` 调用、服务端 `I18n.t` / `Errors::*` / `errors.add`、`Errors::*` 类名、`Errors::*` 插值参数与文案占位符、`site_settings` 与文案双向、`site_settings` 与 Ruby 用法双向、枚举与文案（`STATUSES` / `PRIORITIES` 查两个语种的**客户端**文案，`EVENT_KINDS` 只查**服务端**文案——它的标签由 `EventSerializer` 在服务端查，去客户端文案里找只会报假错）、`plugin.rb` 元数据、前端 API 路径与 `config/routes.rb`、前端相对导入可达性、已提交的迁移未被修改（比工作区与 `HEAD` 的差异，所以改动一旦单独提交就自动变绿）、图标名能真的渲染出来（`scripts/discourse-icons.txt` 是 `SvgSprite::SVG_ICONS` 的快照，再加上本插件 `register_svg_icon` 贡献的名字）。
 
 ### 几条容易踩的约定
 
@@ -535,6 +536,8 @@ sudo -u discourse bundle exec rake db:migrate:status | grep ticketing_system
 ```
 
 六个迁移都应该在，且 `ticketing_system_tickets` 上应该有 `last_requester_message_at` / `last_staff_message_at` / `sla_notified_at` 三个列。缺任何一个就是迁移没跑完。
+
+**侧边栏条目只有文字没有图标，或通知条目空一块。** 图标名没被打包进核心的精灵。Discourse 下发的是 FontAwesome 的子集：`SvgSprite.bundle` 只取 `SvgSprite.all_icons` 里的名字（= `SvgSprite::SVG_ICONS` + 站点设置 / 主题 / 插件贡献）。FontAwesome 源文件里有、但清单里没有的名字，渲染出来就是一块空白，**不报错、不警告**。要么换成清单里的名字，要么在 `plugin.rb` 里 `register_svg_icon "名字"`。跑 `sh scripts/py.sh scripts/validate.py --verbose` 会直接指出是哪个名字。
 
 **插件页面 404 / 没有样式。** 先确认目录名是 `ticketing-system`（全小写），再确认 `plugin.rb` 的 `# name:` 与 `PLUGIN_NAME` 和目录名三者一致。
 

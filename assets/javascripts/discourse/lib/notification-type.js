@@ -30,9 +30,18 @@ import { ticketPath } from "./ticketing-system";
 //                `prioritize_full_name_in_ux` 关闭时回退到 `username`，
 //                而工单的 username 可能是 nil（系统事件）。这里自己兜底。
 //   icon         基类返回 `notification.ticketing_system`，核心图标表里没有这个
-//                名字，d-icon 渲染出一个空 svg。`ticket` 是核心 solid 精灵里真实
-//                存在的图标（vendor/assets/svg-icons/fontawesome/solid.svg 里
-//                id="ticket"；solid 图标不带前缀，regular 才需要 far-）。
+//                名字，d-icon 渲染出一个空 svg。这里改用它，但**仅仅改名字是不够的**：
+//                见下面的 `ticket` 说明。
+//
+// 关于 `ticket`：它存在于 FontAwesome 的源文件里
+// （vendor/assets/svg-icons/fontawesome/solid.svg 有 id="ticket"），但 Discourse
+// 下发的是**子集** —— `SvgSprite.bundle` 只打包 `SvgSprite.all_icons` 里的图标，
+// 也就是 `SvgSprite::SVG_ICONS` 加上站点设置 / 主题 / 插件贡献的那些。`ticket`
+// 不在 `SVG_ICONS` 里（`plus`、`clock`、`inbox`、`envelope`、`bell`、
+// `magnifying-glass` 在，`ticket` 不在）。所以插件必须在 plugin.rb 里显式
+// `register_svg_icon "ticket"`，否则这个 getter 返回的名字渲染出来仍然是空 svg ——
+// 侧边栏链接只剩文字、通知条目空一块，而且**没有任何日志**，因为「名字不在精灵里」
+// 对渲染器来说不是错误，只是不存在。（solid 图标不带前缀，regular 才需要 far-。）
 //
 // 顺带说明头像：通知条目在 `show_user_menu_avatars` 打开时会渲染发言人的头像，
 // 数据来源是 `Notification.populate_acting_user` 读 `data_hash[:username]` ——

@@ -864,6 +864,88 @@ def check_migrations_are_append_only() -> None:
 
 
 # ---------------------------------------------------------------------------
+# K. 交给核心渲染的图标名必须真的能渲染出来
+# ---------------------------------------------------------------------------
+
+ICON_SNAPSHOT = ROOT / "scripts/discourse-icons.txt"
+
+# 插件把图标名交给**核心**渲染的两种写法。
+#
+# 只列这两种，因为只有这两种在用；新增第三种写法时这里也要加一条，否则那个
+# 调用点就绕过检查了。刻意不写成「`icon` 后面 60 字符内的字符串」那种模糊匹配：
+# 这个仓库的注释里到处在讨论图标，模糊匹配会把注释里的例子当成代码。
+ICON_NAME_PATTERNS = (
+    # 对象字面量属性：api.addCommunitySectionLink({ icon: "ticket" })
+    r'\bicon:\s*"([^"]+)"',
+    # getter：get icon() { return "ticket"; }
+    r'\bget\s+icon\s*\(\s*\)\s*\{\s*return\s+"([^"]+)"',
+)
+
+
+def core_icon_names() -> set[str]:
+    """核心会打包进精灵的名字。
+
+    两个来源，缺一不可：`SvgSprite::SVG_ICONS` 的快照，加上本插件自己
+    `register_svg_icon` 贡献的名字 —— 后者正是「想用一个不在内置清单里的图标」
+    的正规做法，核心自己的插件也这么干（discourse-cakeday 为 `cake-candles`
+    调了 `register_svg_icon`）。
+    """
+    if not ICON_SNAPSHOT.exists():
+        warn("scripts/discourse-icons.txt", "图标快照不存在：跳过图标名检查")
+        return set()
+
+    names = {
+        line.strip()
+        for line in read(ICON_SNAPSHOT).splitlines()
+        if line.strip() and not line.strip().startswith("#")
+    }
+
+    for path in sources("plugin.rb"):
+        for match in re.finditer(
+            r'register_svg_icon\s+["\']([^"\']+)["\']', read(path)
+        ):
+            names.add(match.group(1))
+
+    return names
+
+
+def check_icon_names() -> None:
+    """`d-icon` 对不在精灵里的名字不报错、不警告，只是画出一块空白。
+
+    这是这个插件真实踩过的坑：侧边栏链接和通知条目都用了 `ticket`。FontAwesome
+    的源文件里有它，但 Discourse 下发的精灵只包含 `SvgSprite::SVG_ICONS` 加上
+    站点设置 / 主题 / 插件贡献的名字，而 `ticket` 不在那份清单里。表现是侧边栏
+    那一行只有文字、通知条目空一块，控制台一片干净 —— 看起来像样式问题，实际是
+    一个名字没被打包。
+
+    检查的是「名字能不能渲染出来」，不是「名字拼得对不对」：拼错和用了一个
+    未注册但真实存在的图标，症状完全一样，所以判定标准也一样。
+    """
+    known = core_icon_names()
+    if not known:
+        return
+
+    files = sources("assets/javascripts/**/*.js") + sources(
+        "assets/javascripts/**/*.gjs"
+    )
+
+    for path in files:
+        text = read(path)
+        for pattern in ICON_NAME_PATTERNS:
+            for match in re.finditer(pattern, text):
+                name = match.group(1)
+                if name in known:
+                    continue
+                line = text.count("\n", 0, match.start()) + 1
+                error(
+                    rel(path),
+                    f"第 {line} 行的图标名 `{name}` 既不在核心的图标清单里，"
+                    f'plugin.rb 里也没有 `register_svg_icon "{name}"`。'
+                    f"`d-icon` 不会报错，只会画出一块空白",
+                )
+
+
+# ---------------------------------------------------------------------------
 # 主流程
 # ---------------------------------------------------------------------------
 
@@ -887,6 +969,7 @@ def main() -> int:
         ("前端 API 路径 ↔ config/routes.rb", check_api_paths),
         ("前端相对导入可达", check_relative_imports),
         ("已提交的迁移未被修改", check_migrations_are_append_only),
+        ("图标名能真的渲染出来", check_icon_names),
     ]
 
     passed: list[str] = []

@@ -192,6 +192,17 @@ MUTATIONS: list[Mutation] = [
         # 内容不重要 —— 这条检查比的是「工作区与 HEAD 的差异」，改一个注释也算改。
         append="\n# selftest probe\n",
     ),
+    Mutation(
+        what="图标名既不在核心清单里，也没 register_svg_icon（画出来是空白）",
+        script=VALIDATE,
+        expect="只会画出一块空白",
+        target="assets/javascripts/discourse/initializers/ticketing-system.js",
+        # 换成 `ticket-alt`：它同样存在于 FontAwesome 源文件里，同样不在
+        # SvgSprite::SVG_ICONS 里，而 plugin.rb 里注册的是 `ticket`，不是它。
+        # 这正是当初那个 bug 的形状 —— 名字看着很合理，渲染出来什么都没有。
+        old='    icon: "ticket",',
+        new='    icon: "ticket-alt",',
+    ),
 ]
 
 

@@ -68,8 +68,14 @@ export default {
 //
 // 对象形式支持的字段是逐字核实过的（frontend/discourse/app/lib/sidebar/
 // custom-community-section-links.js）：name / text / route / href / title / icon /
-// models。其中 `icon` 会被当成 `prefixValue`，所以名字必须是核心图标表里真实
-// 存在的 —— `ticket` 在 solid 精灵里（solid 图标不带前缀）。
+// models。其中 `icon` 会被当成 `prefixValue`。
+//
+// 但**光传对名字不够**，这一点踩过坑：`ticket` 在 FontAwesome 源文件里存在
+// （vendor/assets/svg-icons/fontawesome/solid.svg 有 id="ticket"），而 Discourse
+// 下发的是子集 —— 只打包 `SvgSprite.all_icons`（= `SvgSprite::SVG_ICONS` + 站点
+// 设置 / 主题 / 插件贡献）里的图标，`ticket` 不在其中。所以 plugin.rb 里必须有一行
+// `register_svg_icon "ticket"`；少了它，链接会正常出现、文字正常、图标是空的，
+// 控制台也**不会**报任何错。solid 图标不带前缀，regular 才需要 far-。
 function addSidebarLink(api) {
   api.addCommunitySectionLink({
     name: SIDEBAR_LINK_NAME,

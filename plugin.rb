@@ -105,6 +105,28 @@ enabled_site_setting :ticketing_system_enabled
 register_asset "stylesheets/ticketing-system.scss"
 register_asset "stylesheets/ticketing-system-admin.scss"
 
+# The sidebar link and the notification item both ask for the `ticket` icon.
+
+# Being present in the FontAwesome SOURCE is not enough to get it SERVED.
+# Discourse ships a subset, assembled by `SvgSprite.bundle` from
+# `SvgSprite.all_icons`, which is `SvgSprite::SVG_ICONS` plus whatever site
+# settings, themes and plugins contribute. `ticket` exists in
+# `vendor/assets/svg-icons/fontawesome/solid.svg` but is NOT in `SVG_ICONS`
+# (`plus`, `clock`, `inbox`, `envelope`, `bell`, `magnifying-glass` are; `ticket`
+# is not). Without this line the served sprite has no `ticket` symbol, so
+# `d-icon "ticket"` renders an empty <svg>: a sidebar entry with text and no
+# icon, and a notification with a blank gap where its icon should be.
+
+# Nothing logs, and nothing errors — an icon name that is not in the sprite is
+# not a mistake to the renderer, it is simply absent. That is what makes this
+# worth a comment: the failure mode is silent and looks like a styling problem.
+
+# This is the documented mechanism rather than a workaround. Core's own plugins
+# do exactly this: `plugins/discourse-cakeday/plugin.rb` calls
+# `register_svg_icon "cake-candles"` for the icon its own
+# `addCommunitySectionLink` passes as `icon:`.
+register_svg_icon "ticket"
+
 after_initialize do
   # Registers a plugin-owned notification type.
 
