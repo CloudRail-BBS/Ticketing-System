@@ -118,10 +118,9 @@ class CreateTicketingSystemTickets < ActiveRecord::Migration[8.0]
     add_index :ticketing_system_tickets, %i[department_id status last_activity_at],
               name: "idx_ticketing_tickets_department"
 
-    # Supports the unread badge, which is a filtered count on every page load.
+    # No index for the unread badge, and that is deliberate.
     #
-    # There is deliberately no partial index on the unread test itself. The test
-    # is `t.last_requester_message_at > m.last_read_at`, where the right-hand
+    # The test is `t.last_requester_message_at > m.last_read_at`, where the right-hand
     # side differs per reader — so no index on a single column of this table can
     # serve it. What makes the query cheap is the narrow candidate set: the
     # composite indexes above already restrict the scan to one department (or
