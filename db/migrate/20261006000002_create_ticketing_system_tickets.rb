@@ -1,5 +1,26 @@
 # frozen_string_literal: true
 
+# THIS MIGRATION WAS EDITED AFTER IT HAD ALREADY BEEN RUN, AND THAT COST A
+# PRODUCTION BREAK. Read this before touching any migration in this directory.
+#
+# The unread model changed from two shared counters on this table to one row per
+# reader in `ticketing_system_read_markers`, so the columns below were rewritten:
+# `requester_last_read_at` / `staff_last_read_at` became
+# `last_requester_message_at` / `last_staff_message_at`, the two counters were
+# removed, and `sla_notified_at` was added. The file was changed in place instead
+# of getting a new migration.
+#
+# Rails records a migration that has run in `schema_migrations` and never runs it
+# again. Every install created from the earlier revision therefore kept the OLD
+# columns and never got the new ones, while the code went on to read them on
+# every request — a 500 whose message was a Postgres undefined-column error.
+# `20261006000006_add_ticketing_system_per_reader_unread.rb` repairs those
+# installs.
+#
+# The rule this file exists to demonstrate: a migration is append-only once it
+# has shipped. Changing an unreleased one is free; changing a released one is a
+# silent, per-install divergence, because the divergence depends on WHEN each
+# install happened to run it. Add a new migration instead.
 class CreateTicketingSystemTickets < ActiveRecord::Migration[8.0]
   def change
     create_table :ticketing_system_tickets do |t|
