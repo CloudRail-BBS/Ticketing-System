@@ -32,8 +32,28 @@ module ::TicketingSystem
   # purpose. Every file under this plugin's lib/ is require_relative'd from
   # plugin.rb, so there is nothing to gain and one more way to get a
   # Zeitwerk::NameError on eager load.
+  #
+  # WHY app/jobs/scheduled IS EAGER-LOADED BY HAND
+  #
+  # A plugin's `app/jobs/scheduled` directory is not picked up by the normal
+  # plugin autoload paths, and the failure is silent: the class never loads, so
+  # `Jobs::Scheduled.descendants` never includes it, so the scheduler never
+  # queues it. Nothing logs, nothing warns, and the job simply never runs — which
+  # for the SLA sweep means overdue tickets are never announced, and the only
+  # symptom is that nobody was ever told.
+  #
+  # `eager_load_dir` inside `to_prepare` is the pattern core's own plugins use
+  # (discourse-data-explorer, discourse-workflows). `to_prepare` runs at boot and
+  # again on every code reload in development, which is what keeps the job
+  # registered after a reload rather than only until the first one.
+  #
+  # `Rails.autoloaders.main` is used rather than `Zeitwerk::Loader.eager_load_all`
+  # so this loads exactly one directory and cannot be affected by load order.
   class Engine < ::Rails::Engine
     engine_name "ticketing_system"
     isolate_namespace TicketingSystem
+
+    scheduled_job_dir = "#{config.root}/app/jobs/scheduled"
+    config.to_prepare { Rails.autoloaders.main.eager_load_dir(scheduled_job_dir) }
   end
 end

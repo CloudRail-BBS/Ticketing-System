@@ -142,6 +142,24 @@ export default class TicketingSystemService extends Service {
     return this.limits.body_max_length ?? 20000;
   }
 
+  // 单条消息的附件上限。0 表示附件功能被关掉（`ticketing_system_max_attachments`
+  // 设成 0），此时附件选择器整个不渲染 —— 服务端也会拒绝带 upload_ids 的请求，
+  // 但让用户看到一个注定失败的控件比不显示它更糟。
+  get maxAttachments() {
+    return this.limits.max_attachments ?? 0;
+  }
+
+  get attachmentsEnabled() {
+    return this.maxAttachments > 0;
+  }
+
+  // 论坛允许的扩展名（已由服务端归一化：小写、去掉点、去重）。
+  // 空数组表示「不限制」。注意这只是给 picker 用的提示：真正的白名单在
+  // Attachments.validate! 里，客户端改不了它。
+  get allowedUploadExtensions() {
+    return this.limits.allowed_upload_extensions ?? [];
+  }
+
   load() {
     if (!this._pending) {
       this._pending = this.#fetch();

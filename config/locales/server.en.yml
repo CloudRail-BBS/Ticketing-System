@@ -27,6 +27,11 @@ en:
     # Labels for the audit trail. `EventSerializer#kind_label` looks these up with
     # `default: object.kind`, so a kind added without a translation degrades to
     # its machine name rather than rendering a raw i18n key.
+    #
+    # NOTE: scripts/validate.py checks the STATUSES / PRIORITIES enums against
+    # these files, but NOT Constants::EVENT_KINDS. A kind added to that list
+    # without a line here will degrade silently, so this block has to be kept in
+    # step by hand.
     event:
       created: "Ticket created"
       replied: "Replied"
@@ -37,6 +42,8 @@ en:
       department_changed: "Department changed"
       reopened: "Reopened"
       closed: "Closed"
+      sla_breached: "Service-level deadline missed"
+      auto_closed: "Closed automatically after being resolved"
 
     page:
       title: "Tickets"
@@ -81,6 +88,11 @@ en:
       too_many_open_tickets: "You already have %{count} open tickets. Please wait for one to be resolved."
       create_rate_limited: "You can open at most %{count} tickets per hour. Please try again later."
       reply_rate_limited: "You can send at most %{count} replies per hour. Please try again later."
+      attachments_disabled: "Attachments are not enabled."
+      too_many_attachments: "You can attach at most %{max} files to one message."
+      unknown_attachment: "One of the files you attached is no longer available. Please upload it again."
+      attachment_not_owned: "You can only attach files that you uploaded yourself."
+      attachment_extension_not_allowed: "Files of this type cannot be attached: %{extensions}"
 
   # Model validation messages that Rails has no default for.
   #
@@ -120,7 +132,11 @@ en:
     ticketing_system_reply_per_hour: "How many replies one user may post per hour. Set to 0 to disable the limit."
     ticketing_system_first_response_hours: "Hours allowed before a first staff reply is considered overdue. Used when a ticket's department does not set its own."
     ticketing_system_resolution_hours: "Hours allowed before a ticket is considered overdue for resolution. Used when a ticket's department does not set its own."
+    ticketing_system_overdue_reminders: "Notify staff when a ticket passes its first-response or resolution deadline."
+    ticketing_system_auto_close_days: "Days a resolved ticket waits for confirmation before it is closed automatically. Set to 0 to never close tickets automatically."
     ticketing_system_list_page_size: "How many tickets to show per page."
+    ticketing_system_max_attachments: "How many files may be attached to one ticket message. Set to 0 to disallow attachments."
+    ticketing_system_allowed_upload_extensions: "File extensions that may be attached to a ticket message. Leave empty to allow anything the forum already accepts."
     ticketing_system_notify_staff: "Notify staff when a ticket is opened or the requester replies."
     ticketing_system_notify_requester: "Notify the requester when staff replies or resolves the ticket."
     ticketing_system_notify_assignee: "Notify a staff member when a ticket is assigned to them."

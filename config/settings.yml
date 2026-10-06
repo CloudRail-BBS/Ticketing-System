@@ -122,9 +122,12 @@ plugins:
     client: false
 
   ticketing_system_first_response_hours:
-    # Used to compute the "first response due" deadline on a ticket. This plugin
-    # deliberately ships no background job: the deadline is derived at read time
-    # from `created_at`, so there is nothing to schedule and nothing to drift.
+    # Used to compute the "first response due" deadline on a ticket.
+    #
+    # The deadline itself is still derived at read time from `created_at` (see
+    # Ticket#sla) — this setting is not a schedule. What the value also drives is
+    # the overdue sweep job, which reads it directly in SQL; the two readings are
+    # kept identical by SlaSweeper's own COALESCE.
     default: 24
     min: 1
     max: 720
@@ -136,27 +139,58 @@ plugins:
     max: 2160
     client: true
 
+  ticketing_system_overdue_reminders:
+    # Whether the SLA sweep notifies staff about tickets that have passed a
+    # deadline. Turning this off pauses the feature completely: the job returns
+    # before claiming any ticket, so switching it back on announces the tickets
+    # that are overdue at that moment rather than the ones that were overdue
+    # while it was off.
+    default: true
+    client: false
+
+  ticketing_system_auto_close_days:
+    # How long a ticket may sit in `resolved` before it is closed automatically.
+    # Set to 0 to never auto-close, which is why the value is read as
+    # "non-positive disables" rather than "close immediately".
+    default: 7
+    min: 0
+    max: 365
+    client: false
+
   ticketing_system_list_page_size:
     default: 20
     min: 5
     max: 100
     client: true
 
-  # NO ATTACHMENT SETTINGS ON PURPOSE.
+  # ATTACHMENTS.
   #
-  # There is no `ticketing_system_max_attachments` or
-  # `ticketing_system_allowed_upload_extensions` here, because this version
-  # stores no uploads at all: a message is text only. Adding the settings before
-  # the feature would put two live controls in /admin/site_settings that change
-  # nothing, and an admin who narrows the extension list would believe they had
-  # restricted what can be posted.
-  #
-  # When uploads do land, the association must go through core's
-  # `UploadReference` and the payload must be built with `UploadSerializer`
-  # rather than a hand-rolled hash: `UploadSerializer#url` is where the
-  # `secure_uploads` rewrite to /secure-uploads/… happens, and a hash built by
-  # hand returns the raw storage path, which the browser cannot fetch on a forum
-  # with secure uploads enabled. See the README's "Not implemented" section.
+  # The association goes through core's `UploadReference` and the payload is
+  # built with `UploadSerializer` — never a hand-rolled hash. `UploadSerializer#url`
+  # is where the `secure_uploads` rewrite to /secure-uploads/… happens, so a hash
+  # built by hand returns the raw storage path, which the browser cannot fetch on
+  # a forum with secure uploads enabled. See lib/ticketing_system/attachments.rb.
+
+  ticketing_system_max_attachments:
+    # Per message. 0 disables attachments entirely — the file picker disappears
+    # and the server rejects any upload id it is sent.
+    default: 5
+    min: 0
+    max: 20
+    client: true
+
+  ticketing_system_allowed_upload_extensions:
+    # Empty means "anything core accepts". Values are matched case-insensitively
+    # and a leading dot is ignored, so "PNG" and ".png" both mean png.
+    #
+    # This is a second gate, not the first: core's own
+    # `authorized_extensions` / `authorized_extensions_for_staff` have already
+    # run when the file was uploaded. Narrowing this list only rejects
+    # attachments at the point they are attached to a message, so an admin who
+    # wants to allow a type that core blocks must change core's setting.
+    default: ""
+    type: list
+    client: true
 
   ticketing_system_notify_staff:
     default: true

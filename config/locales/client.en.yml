@@ -131,6 +131,24 @@ en:
           due_soon: "Due soon"
           breached: "Overdue"
 
+      # Attachments.
+      #
+      # `uploading` and `failed` are per-file: a five-file selection can have one
+      # failure, so the failure message takes the filename rather than saying
+      # "the upload failed".
+      attachments:
+        add: "Attach files"
+        uploading: "Uploading…"
+        remove: "Remove this attachment"
+        failed: "Could not upload %{filename}."
+        limit: "You can attach at most %{max} files to one message."
+
+      # "Who has seen this" — staff only, see TicketDetailSerializer#readers.
+      readers:
+        heading: "Seen by"
+        none: "No other staff member has opened this ticket yet."
+        read_at: "last read %{time}"
+
       actions:
         reply: "Reply"
         send: "Send"
@@ -258,9 +276,19 @@ en:
       # (empty string when the event carries none) because Discourse's i18n
       # treats `undefined` as a missing interpolation and renders the literal
       # "[missing %{status} value]".
+      #
+      # `sla_breached*` and `auto_closed` are the exception to the "phrase"
+      # rule: they are written by the scheduled jobs, so there is no acting user
+      # and the label span renders empty. A phrase with no subject ("missed a
+      # deadline") would read as a fragment, so these three are standalone
+      # sentences.
       notifications:
         new_ticket: "opened a ticket"
         requester_reply: "replied to a ticket"
         staff_reply: "replied to your ticket"
         assigned: "assigned a ticket to you"
         status_changed: "marked the ticket %{status}"
+        sla_breached: "Overdue: this ticket has passed its service-level deadline"
+        sla_breached_first_response: "Overdue: nobody has replied to this ticket yet"
+        sla_breached_resolution: "Overdue: this ticket is past its resolution deadline"
+        auto_closed: "This ticket was closed automatically after being resolved"

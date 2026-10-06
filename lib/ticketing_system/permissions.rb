@@ -186,6 +186,14 @@ module ::TicketingSystem
           body_max_length: SiteSetting.ticketing_system_body_max_length.to_i,
           max_open_per_user: SiteSetting.ticketing_system_max_open_per_user.to_i,
           page_size: SiteSetting.ticketing_system_list_page_size.to_i,
+          # The client needs these to render the file picker, but they are NOT
+          # the control: Attachments.validate! re-reads the same settings on
+          # every write, so a client that ignores them is rejected rather than
+          # trusted. `allowed_upload_extensions` is sent as a list, already
+          # normalised, so the frontend does not re-parse the pipe-separated
+          # setting and drift from the server's reading of it.
+          max_attachments: Attachments.max_per_message,
+          allowed_upload_extensions: Attachments.allowed_extensions,
         },
         defaults: {
           priority: SiteSetting.ticketing_system_default_priority,
@@ -195,40 +203,35 @@ module ::TicketingSystem
       }
     end
 
-    # Unread semantics are deliberately "shared inbox", not per-user:
+    # Unread is PER READER, not per ticket.
     #
-    #   requester_unread_count  cleared when the requester opens the ticket
-    #   staff_unread_count      cleared when ANY staff member opens the ticket
+    # This used to be two counters on the ticket row, which made it a shared
+    # inbox: one staff member opening a ticket cleared the badge for the whole
+    # team. See ReadMarker for why that was the wrong question and what replaced
+    # it. Both sides now go through the same mechanism, so a requester and a
+    # staff member are answered by identical logic.
     #
-    # That is how a shared support mailbox behaves and it keeps the list query a
-    # single indexed count. Per-staff read tracking would need a join table and a
-    # LEFT JOIN on every list request; it is listed as future work in the README.
+    # Two queries, each a single indexed NOT EXISTS over the read markers. The
+    # requester query is not scoped to active statuses on purpose: a ticket that
+    # was resolved while they were away is exactly the kind of thing they need
+    # the badge for. The staff query IS scoped to active statuses, because a
+    # closed ticket is not work and badging the queue with it would make the
+    # number useless.
     def unread_counts(user, staff: nil)
+      return { requester: 0, staff: 0, total: 0 } if user.blank?
+
       is_staff = resolve_staff(user, staff)
 
-      requester_count =
-        Ticket.where(requester_id: user.id).where("requester_unread_count > 0").count
-
+      requester_count = Ticket.for_requester(user).unread_for(user, staff: false).count
       staff_count =
         if is_staff
-          Ticket
-            .where(status: Constants::ACTIVE_STATUS_VALUES)
-            .where("staff_unread_count > 0")
-            .count
+          Ticket.active.unread_for(user, staff: true).count
         else
           0
         end
 
       { requester: requester_count, staff: staff_count, total: requester_count + staff_count }
     end
-
-    # NOTE: there is deliberately no upload/attachment helper here. This version
-    # stores no files — a ticket message is text only — so a client that asks
-    # "which extensions may I attach?" would be asking a question the server
-    # cannot act on. See the README's "Not implemented" section for what the
-    # feature needs (an `UploadReference`-backed association and
-    # `UploadSerializer`, not a hand-built hash, or `secure_uploads` forums
-    # silently 403 their own attachments).
 
     # `nil` means "not computed yet" — distinct from `false`, which is a real
     # answer. Conflating the two would silently deny a staff member everything

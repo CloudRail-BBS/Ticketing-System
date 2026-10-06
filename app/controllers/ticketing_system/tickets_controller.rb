@@ -12,6 +12,7 @@ module ::TicketingSystem
             TicketSerializer,
             staff: staff?,
             excerpts: excerpts_for(result.tickets),
+            read_markers: read_markers_for(result.tickets),
           ),
         page: {
           total: result.total,
@@ -29,7 +30,19 @@ module ::TicketingSystem
       ticket = find_ticket!(params[:id])
       mark_read!(ticket)
 
-      render json: { ticket: serialize_one(ticket, TicketDetailSerializer, staff: staff?) }
+      render json: {
+               ticket:
+                 serialize_one(
+                   ticket,
+                   TicketDetailSerializer,
+                   staff: staff?,
+                   # Computed AFTER mark_read!, so the payload the client renders
+                   # reflects what the user just did. Computing it first would
+                   # tell the page it is unread while clearing it in the
+                   # database, and the badge would stay lit until the next load.
+                   read_markers: read_markers_for([ticket]),
+                 ),
+             }
     end
 
     def create
@@ -40,10 +53,17 @@ module ::TicketingSystem
           body: params[:body],
           department: params[:department].presence || params[:department_id],
           priority: params[:priority],
+          upload_ids: params[:upload_ids],
         )
 
       render json: {
-               ticket: serialize_one(result.ticket, TicketDetailSerializer, staff: staff?),
+               ticket:
+                 serialize_one(
+                   result.ticket,
+                   TicketDetailSerializer,
+                   staff: staff?,
+                   read_markers: read_markers_for([result.ticket]),
+                 ),
              },
              status: :created
     end

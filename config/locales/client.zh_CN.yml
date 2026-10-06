@@ -129,6 +129,23 @@ zh_CN:
           due_soon: "即将到期"
           breached: "已超时"
 
+      # 附件。uploading / failed 是**按文件**的：一次选五个文件可能只有一个失败，
+      # 所以失败文案带上文件名，而不是笼统地说「上传失败」。
+      # 没有 heading / none：选择器是内联在输入框下面的，不需要标题；而「还没选
+      # 文件」的状态由计数（0 / 5）表达，多一句「未附带文件」只是噪音。
+      attachments:
+        add: "添加附件"
+        uploading: "上传中…"
+        remove: "移除该附件"
+        failed: "「%{filename}」上传失败。"
+        limit: "单条消息最多只能附带 %{max} 个文件。"
+
+      # 「谁看过」——仅员工可见，见 TicketDetailSerializer#readers。
+      readers:
+        heading: "已读"
+        none: "还没有其他员工打开过该工单。"
+        read_at: "最后阅读 %{time}"
+
       actions:
         reply: "回复"
         send: "发送"
@@ -254,9 +271,17 @@ zh_CN:
       # 渲染器总会传一个 `status`（事件不带时传空串），因为 Discourse 的 i18n
       # 把 undefined 视为「缺少插值参数」，会渲染成字面的
       # "[missing %{status} value]"。
+      #
+      # sla_breached* 与 auto_closed 是「短语」规则的例外：它们由定时任务写入，
+      # 没有发言人，条目的 label 是空的。没有主语的短语（「超出了时限」）读起来
+      # 是残句，所以这三条写成完整句子。
       notifications:
         new_ticket: "提交了一张工单"
         requester_reply: "回复了一张工单"
         staff_reply: "回复了你的工单"
         assigned: "把一张工单分配给了你"
         status_changed: "把工单标记为 %{status}"
+        sla_breached: "已超时：该工单已超出服务时限"
+        sla_breached_first_response: "已超时：该工单尚未有人回复"
+        sla_breached_resolution: "已超时：该工单已超过解决时限"
+        auto_closed: "该工单在解决后超期，已被自动关闭"

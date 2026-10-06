@@ -87,6 +87,16 @@ export default class TicketingSystemTicketDetail extends Component {
     );
   }
 
+  // 「已读」整块只对员工显示。
+  //
+  // 服务端对非员工下发的 `readers` 是空数组，所以仅凭 `readers.length` 判断
+  // 也能隐藏列表 —— 但那样连**空状态**（「还没有其他员工打开过该工单」）也一起
+  // 藏掉了，而那句空状态恰恰是员工最需要看到的：它是「没人接手」的信号。
+  // 所以这里用身份判断，而不是数组长度。
+  get showReaders() {
+    return this.ticketingSystem.isStaff;
+  }
+
   // ---- 字段 -------------------------------------------------------------
 
   get metaFields() {
@@ -183,6 +193,14 @@ export default class TicketingSystemTicketDetail extends Component {
         // 而不是「它是我们自己拼的」。
         cooked: htmlSafe(message.cooked ?? ""),
         createdAt: formatTimestamp(message.created_at),
+        // `url` 来自核心的 UploadSerializer，在开了 secure_uploads 的论坛上它是
+        // `/secure-uploads/…` 而不是原始存储路径 —— 所以这里直接用，不要自己拼。
+        files: (message.uploads ?? []).map((upload) => ({
+          id: upload.id,
+          url: upload.url,
+          filename: upload.original_filename,
+          size: upload.human_filesize,
+        })),
         bubbleClass: message.internal
           ? "ts-message is-internal"
           : message.staff
@@ -190,6 +208,20 @@ export default class TicketingSystemTicketDetail extends Component {
             : "ts-message",
       };
     });
+  }
+
+  // 谁看过这张工单。服务端只对员工下发（其他人拿到空数组），所以这里不需要
+  // 再判断身份 —— 有内容就渲染。
+  //
+  // 提交者本人被服务端排除在外：他的已读状态已经由工单上的 `unread` 回答了，
+  // 而这个列表要回答的是「团队里有没有人看到过」。
+  get readers() {
+    return (this.ticket?.readers ?? []).map((reader) => ({
+      id: reader.id,
+      label: reader.name || reader.username,
+      href: userPath(reader.username),
+      readAt: formatTimestamp(reader.last_read_at),
+    }));
   }
 
   get events() {
@@ -564,6 +596,27 @@ export default class TicketingSystemTicketDetail extends Component {
                   </header>
 
                   <div class="ts-message__body">{{message.cooked}}</div>
+
+                  {{#if message.files.length}}
+                    <ul class="ts-message__files">
+                      {{#each message.files as |file|}}
+                        <li>
+                          <a
+                            class="ts-file"
+                            href={{file.url}}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            <TicketingSystemIcon @name="paperclip" @size="12" />
+                            <span class="ts-file__name">{{file.filename}}</span>
+                            {{#if file.size}}
+                              <span class="ts-file__size">{{file.size}}</span>
+                            {{/if}}
+                          </a>
+                        </li>
+                      {{/each}}
+                    </ul>
+                  {{/if}}
                 </article>
               {{/each}}
             </div>
@@ -577,6 +630,31 @@ export default class TicketingSystemTicketDetail extends Component {
             @onPosted={{this.onPosted}}
           />
         </section>
+
+        {{#if this.showReaders}}
+          <section class="ts-section">
+            <h2 class="ts-section__title">
+              {{i18n "ticketing_system.readers.heading"}}
+            </h2>
+
+            {{#if this.readers.length}}
+              <ul class="ts-readers">
+                {{#each this.readers as |reader|}}
+                  <li class="ts-reader">
+                    <a class="ts-reader__name" href={{reader.href}}>
+                      {{reader.label}}
+                    </a>
+                    <span class="ts-reader__time">
+                      {{i18n "ticketing_system.readers.read_at" time=reader.readAt}}
+                    </span>
+                  </li>
+                {{/each}}
+              </ul>
+            {{else}}
+              <p class="ts-muted">{{i18n "ticketing_system.readers.none"}}</p>
+            {{/if}}
+          </section>
+        {{/if}}
 
         <section class="ts-section">
           <h2 class="ts-section__title">{{i18n "ticketing_system.detail.timeline"}}</h2>

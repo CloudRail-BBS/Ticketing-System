@@ -193,14 +193,15 @@ module ::TicketingSystem
       user ? scope.for_requester(user) : scope.where("1 = 0")
     end
 
+    # "Only what I have not read", answered per reader.
+    #
+    # `unread_for` is the same predicate the badge counts with, so filtering by
+    # unread and counting unread can never disagree — which they would if this
+    # were re-derived here as a second condition.
     def apply_unread_filter(scope)
       return scope unless ActiveModel::Type::Boolean.new.cast(@params[:unread])
 
-      if @staff
-        scope.with_staff_unread
-      else
-        scope.with_requester_unread
-      end
+      scope.unread_for(@user, staff: @staff)
     end
 
     # Search covers the four things a person actually types into a ticket search

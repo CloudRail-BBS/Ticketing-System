@@ -9,16 +9,24 @@ module ::TicketingSystem
   class TicketCreator
     Result = Struct.new(:ticket, :message, keyword_init: true)
 
-    def self.create!(user:, title:, body:, department: nil, priority: nil)
-      new(user: user, title: title, body: body, department: department, priority: priority).create!
+    def self.create!(user:, title:, body:, department: nil, priority: nil, upload_ids: nil)
+      new(
+        user: user,
+        title: title,
+        body: body,
+        department: department,
+        priority: priority,
+        upload_ids: upload_ids,
+      ).create!
     end
 
-    def initialize(user:, title:, body:, department: nil, priority: nil)
+    def initialize(user:, title:, body:, department: nil, priority: nil, upload_ids: nil)
       @user = user
       @title = title.to_s.strip
       @body = body.to_s
       @department_param = department
       @priority_param = priority
+      @upload_ids = upload_ids
     end
 
     def create!
@@ -26,6 +34,11 @@ module ::TicketingSystem
       ensure_signed_in!
       RateLimiter.check_create!(@user)
       ensure_under_open_limit!
+
+      # Validated before the transaction, for the same reasons as in
+      # MessageCreator: nothing half-written on rejection, and no write
+      # transaction held open across a handful of reads.
+      attachment_ids = Attachments.validate!(user: @user, upload_ids: @upload_ids)
 
       department = resolve_department
       priority = resolve_priority(department)
@@ -53,14 +66,33 @@ module ::TicketingSystem
         ticket.message_count = 1
         ticket.staff_message_count = staff? ? 1 : 0
 
-        # The author has obviously read their own ticket, so their counter starts
-        # at zero and the other side's starts at one. Getting this backwards
-        # would badge the requester's own new ticket as unread for themselves.
-        ticket.requester_unread_count = 0
-        ticket.staff_unread_count = staff? ? 0 : 1
-        ticket.first_staff_reply_at = message.created_at if staff?
+        # Which side the opening message counts as is what decides who starts out
+        # behind, and the two cases are genuinely different:
+        #
+        #   a requester's ticket is unread for EVERY staff member until each of
+        #   them opens it — there is no per-ticket counter to set, because the
+        #   absence of a read marker already says "this person has not looked";
+        #
+        #   a staff-created ticket (staff opening one on someone's behalf) is
+        #   unread for its requester, and its first-response clock has already
+        #   stopped.
+        if staff?
+          ticket.last_staff_message_at = message.created_at
+          ticket.first_staff_reply_at = message.created_at
+        else
+          ticket.last_requester_message_at = message.created_at
+        end
+
         ticket.last_activity_at = message.created_at
         ticket.save!
+
+        Attachments.attach!(target: message, upload_ids: attachment_ids)
+
+        # The author has obviously read the ticket they just opened. Without this
+        # row the requester would be badged for their own new ticket the moment
+        # anyone else replied — and, on a staff-created ticket, the staff author
+        # would be badged for their own opening message.
+        ReadMarker.mark_read!(ticket: ticket, user: @user, at: message.created_at)
 
         Event.record!(ticket: ticket, actor: @user, kind: "created")
       end

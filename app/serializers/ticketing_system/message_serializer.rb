@@ -19,11 +19,27 @@ module ::TicketingSystem
                :internal,
                :staff,
                :excerpt,
+               :uploads,
                :created_at,
                :updated_at
 
     def user
       user_summary(object.user)
+    end
+
+    # Attachments, serialised by core's UploadSerializer and not by hand.
+    #
+    # `UploadSerializer#url` is where the `secure_uploads` rewrite to
+    # /secure-uploads/… happens. A hash built here would look right in the JSON
+    # and 404 in the browser on any forum with secure uploads enabled — see
+    # TicketingSystem::Attachments for the full account.
+    #
+    # Internal notes carry their attachments through this same path, and that is
+    # safe: the requester's payload never contains an internal note at all
+    # (`TicketDetailSerializer#messages` filters them at the query), so the note's
+    # attachments are never sent to them either.
+    def uploads
+      Attachments.serialize(object.uploads)
     end
 
     # `internal?` would be the natural name, but it is also what ActiveRecord

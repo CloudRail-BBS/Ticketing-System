@@ -18,12 +18,25 @@ module ::TicketingSystem
           user: current_user,
           body: params[:body],
           internal: params[:internal],
+          upload_ids: params[:upload_ids],
         )
 
       # `reload` clears the association caches the creator populated, so the
       # serializer reads the committed rows rather than the in-memory ones.
+      #
+      # `read_markers` is resolved after the write for the same reason as in
+      # TicketsController#show: the creator has just marked the author as having
+      # read the thread, and the payload must agree with the database.
+      ticket = result.ticket.reload
+
       render json: {
-               ticket: serialize_one(result.ticket.reload, TicketDetailSerializer, staff: staff?),
+               ticket:
+                 serialize_one(
+                   ticket,
+                   TicketDetailSerializer,
+                   staff: staff?,
+                   read_markers: read_markers_for([ticket]),
+                 ),
                message_id: result.message.id,
              }
     end

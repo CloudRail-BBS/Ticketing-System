@@ -12,21 +12,28 @@ module ::TicketingSystem
   class MessageCreator
     Result = Struct.new(:ticket, :message, keyword_init: true)
 
-    def self.create!(ticket:, user:, body:, internal: false)
-      new(ticket: ticket, user: user, body: body, internal: internal).create!
+    def self.create!(ticket:, user:, body:, internal: false, upload_ids: nil)
+      new(ticket: ticket, user: user, body: body, internal: internal, upload_ids: upload_ids).create!
     end
 
-    def initialize(ticket:, user:, body:, internal: false)
+    def initialize(ticket:, user:, body:, internal: false, upload_ids: nil)
       @ticket = ticket
       @user = user
       @body = body.to_s
       @internal = ActiveModel::Type::Boolean.new.cast(internal)
+      @upload_ids = upload_ids
     end
 
     def create!
       ensure_enabled!
       ensure_permitted!
       RateLimiter.check_reply!(@user)
+
+      # Validated OUTSIDE the transaction. Two reasons: an attachment the user
+      # may not use should not leave a half-written message behind, and this does
+      # a handful of queries that have no business holding a write transaction
+      # open while they run.
+      attachment_ids = Attachments.validate!(user: @user, upload_ids: @upload_ids)
 
       message = nil
 
@@ -42,6 +49,15 @@ module ::TicketingSystem
         apply_status_transition
         @ticket.last_activity_at = message.created_at
         @ticket.save!
+
+        Attachments.attach!(target: message, upload_ids: attachment_ids)
+
+        # The author has read the thread up to their own message, and only that
+        # far: `at: message.created_at` rather than `now`, so a later reply from
+        # the other side still registers as unread. Without this the author's own
+        # reply would leave them flagged as behind on the conversation they just
+        # joined — which is what the old per-ticket counters used to clear.
+        ReadMarker.mark_read!(ticket: @ticket, user: @user, at: message.created_at)
 
         Event.record!(
           ticket: @ticket,
@@ -91,10 +107,18 @@ module ::TicketingSystem
       raise Errors::Forbidden.new(key)
     end
 
-    # Internal notes deliberately move neither unread counter. They are staff
-    # bookkeeping — badging the requester for something they cannot see would be
-    # a bug, and badging the whole staff team for a note one of them just wrote
-    # would make the shared inbox badge meaningless.
+    # Counters and per-side timestamps.
+    #
+    # The two `last_*_message_at` columns are what the unread badge compares
+    # against a reader's marker, so this is the ONLY place that has to move them:
+    # no read state is written here at all. The old version of this method also
+    # zeroed the other side's unread counter, which is exactly the shared-inbox
+    # behaviour that made one staff member's read clear the whole team's badge.
+    #
+    # Internal notes deliberately touch neither timestamp. They are staff
+    # bookkeeping: a note is not "the staff side spoke" to the requester, who
+    # cannot see it, and treating it as such would badge them for something they
+    # will never be shown.
     def apply_counters(message)
       if @internal
         @ticket.staff_message_count = @ticket.staff_message_count.to_i + 1
@@ -105,14 +129,12 @@ module ::TicketingSystem
 
       if user_is_staff?
         @ticket.staff_message_count = @ticket.staff_message_count.to_i + 1
-        @ticket.requester_unread_count = @ticket.requester_unread_count.to_i + 1
-        @ticket.staff_unread_count = 0
+        @ticket.last_staff_message_at = message.created_at
         # `||=` so a later staff reply cannot move the first-response timestamp
         # that the SLA statistic is built on.
         @ticket.first_staff_reply_at ||= message.created_at
       else
-        @ticket.staff_unread_count = @ticket.staff_unread_count.to_i + 1
-        @ticket.requester_unread_count = 0
+        @ticket.last_requester_message_at = message.created_at
       end
     end
 

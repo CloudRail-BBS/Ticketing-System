@@ -33,6 +33,10 @@ const PATHS = {
   tag: "M2.4 8.2l5.8-5.8h5.4v5.4l-5.8 5.8zM10.6 5.4h.01",
   building: "M3 14V3h6.2v11M9.2 7h3.8v7M5 6h2.2M5 9h2.2M5 12h2.2M11 10h.01M11 12h.01",
   arrowLeft: "M12.5 8h-9M7 3.5L2.5 8 7 12.5",
+  // 回形针。取自 Feather 的 paperclip，按 24 → 16 的 viewBox 等比缩放
+  // （系数 2/3），这样描边宽度和其余图标在视觉上一致。
+  paperclip:
+    "M14.29 7.37l-6.13 6.13a4 4 0 0 1-5.66-5.66l6.13-6.13a2.67 2.67 0 0 1 3.77 3.77l-6.13 6.13a1.33 1.33 0 0 1-1.89-1.89l5.66-5.65",
 };
 
 export default class TicketingSystemIcon extends Component {

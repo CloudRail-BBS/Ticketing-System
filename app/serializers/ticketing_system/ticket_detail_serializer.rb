@@ -20,6 +20,10 @@ module ::TicketingSystem
     # answer beyond it.
     MAX_ASSIGNABLE_USERS = 200
 
+    # "Who has seen this" stops being readable well before this. The cap exists
+    # so one ticket on a large forum cannot put a thousand avatars in a payload.
+    MAX_READERS = 50
+
     attributes :id,
                :display_number,
                :title,
@@ -48,7 +52,8 @@ module ::TicketingSystem
                :url,
                :messages,
                :events,
-               :assignable_users
+               :assignable_users,
+               :readers
 
     # Internal notes are filtered HERE, at the query, not in the serializer. A
     # requester's payload must never contain the text of a note they cannot see,
@@ -56,9 +61,15 @@ module ::TicketingSystem
     #
     # `root: false` on each nested serializer: without it every message would come
     # back as `{"message" => {...}}`, and the client would have to know that.
+    #
+    # `includes(:uploads)` is what keeps the attachments to one extra query for
+    # the whole thread rather than one per message: MessageSerializer#uploads
+    # touches `object.uploads` for every message, and a twenty-message ticket
+    # would otherwise issue twenty queries to render one page.
     def messages
       scope_relation = object.messages
       scope_relation = scope_relation.public_messages unless staff?
+      scope_relation = scope_relation.includes(:uploads)
       scope_relation.map { |message| serialize(message, MessageSerializer) }
     end
 
@@ -80,6 +91,37 @@ module ::TicketingSystem
           ids |= [object.assignee_id] if object.assignee_id.present?
           User.where(id: ids).order(:username).map { |user| user_summary(user) }
         end
+    end
+
+    # Staff only: who has opened this ticket, most recently read first.
+    #
+    # The requester is excluded on purpose. Their read state is already answered
+    # by `unread` on the ticket, and the question this list exists to answer is
+    # "has anyone on the team seen this yet" — which a row for the person who
+    # opened it would only obscure.
+    #
+    # This is the read-marker table read the other way round: per ticket instead
+    # of per reader. It is also why the unique index is (ticket_id, user_id)
+    # rather than (user_id, ticket_id).
+    def readers
+      return [] unless staff?
+
+      @readers ||=
+        object
+          .read_markers
+          .includes(:user)
+          .where.not(user_id: object.requester_id)
+          .order(last_read_at: :desc)
+          .limit(MAX_READERS)
+          .filter_map do |marker|
+            # A deleted user leaves a marker behind (there is no FK to `users`,
+            # deliberately). Dropping the row is better than rendering a blank
+            # avatar with no name.
+            summary = user_summary(marker.user)
+            next if summary.nil?
+
+            summary.merge(last_read_at: marker.last_read_at)
+          end
     end
 
     private

@@ -1,8 +1,8 @@
 # Ticketing System（Discourse 工单系统插件）
 
-一个自包含的 Discourse 工单（work order）插件：部门、优先级、指派、内部备注、员工收件箱，外加一个统计面板。
+一个自包含的 Discourse 工单（work order）插件：部门、优先级、指派、内部备注、附件、逐人已读追踪、员工收件箱，外加一个统计面板和两个后台任务。
 
-不依赖任何其他插件，不改动现有的主题与帖子，不往 Discourse 的 `Topic`/`Post` 表里写任何东西——工单是四张独立的表。
+不依赖任何其他插件，不改动现有的主题与帖子，不往 Discourse 的 `Topic`/`Post` 表里写任何东西——工单是五张独立的表。
 
 ---
 
@@ -64,16 +64,17 @@ get "stylesheets/:name" => "stylesheets#show",
 **用户侧**
 
 - `/tickets` — 我的工单列表，带未读数徽标、状态/优先级/部门筛选、四种排序
-- `/tickets/new` — 新建工单，选部门、填标题与正文
-- `/tickets/:id` — 工单详情：完整对话流、时间线、操作栏
+- `/tickets/new` — 新建工单，选部门、填标题与正文、加附件
+- `/tickets/:id` — 工单详情：完整对话流、附件、时间线、操作栏
 - 侧边栏「Community」区块与顶部导航栏都有入口（可用设置关掉）
-- 工单被回复、被指派、状态变更时会收到 Discourse 原生通知，出现在通知面板里
+- 工单被回复、被指派、状态变更、超时未响应、被自动关闭时会收到 Discourse 原生通知，出现在通知面板里
 
 **员工侧**
 
 - 收件箱作用域：`mine` / `all` / `unassigned` / `assigned_to_me` / `active`
 - 改状态、改优先级、指派（支持 `me` / 用户名 / 用户 id / `none`）
 - 内部备注——仅员工可见，不通知用户，不进对话流给用户看
+- 未读是**逐人**的：一张工单被谁看过、什么时候看的，都在详情页的「已读」区块里列出来
 - 时间线：谁在什么时候做了什么，逐条记录
 
 **管理侧**
@@ -102,15 +103,99 @@ open ──▶ in_progress ──▶ pending ──▶ resolved ──▶ closed
 
 优先级：`low` / `normal` / `high` / `urgent`。
 
-`open`、`in_progress`、`pending` 合称**活跃状态**，未读徽标、员工收件箱默认范围和「超时」判定都基于这三个。
+`open`、`in_progress`、`pending` 合称**活跃状态**，员工收件箱的默认范围、员工的未读徽标和「超时」判定都基于这三个。
+
+> 发起人侧的未读**不**按活跃状态过滤：一张在他离开期间被解决的工单，恰恰是他需要看到徽标的那种情况。见下面「未读是逐人的」。
 
 > `lib/ticketing_system/constants.rb` 里的整数是**存储契约**——它们会被写进数据库。加成员请追加新数字，永远不要重排或重编号。
 
 ---
 
+## 未读是逐人的
+
+未读**没有**存在任何一列上，它是推导出来的：
+
+```
+员工未读    ⇔  ticket.last_requester_message_at > marker.last_read_at
+发起人未读  ⇔  ticket.last_staff_message_at     > marker.last_read_at
+```
+
+`marker` 是 `ticketing_system_read_markers` 里的一行 `(ticket_id, user_id, last_read_at)`。**行的缺失就是「从未打开过」**，所以 `last_read_at` 是 `NOT NULL` 的，不存在「未读行」这种东西。
+
+### 为什么不是每张工单两个计数器
+
+早期版本是 `tickets.staff_unread_count` / `requester_unread_count` 两个列。那回答的是「**有人**看过了吗」，而共享收件箱需要回答的是「**这个人**看过了吗」。用计数器时，第一个打开工单的员工会把整个团队的徽标一起清掉——也就是说，徽标恰好不再警告那些真正没看过的人。
+
+### 为什么推导而不是存储
+
+存一个布尔值意味着「来消息时置位、打开工单时清除」，而每一条写消息的路径、每一个打开工单的入口都是一次写错的机会。写错的症状是**一个永远清不掉的徽标**——看起来像缓存问题，其实不是。推导的话，两个事实来源不可能不一致。
+
+### 两侧走同一套机制
+
+发起人侧原本是计数器，现在也走读标记表。理由就是上面那条：两个事实来源总有一天会不一致。代价是发起人侧多一张表的一行，换来的是「未读」这件事在整个代码里只有一个答案。
+
+`last_requester_message_at` / `last_staff_message_at` 是**关于消息**的事实，不是关于读取的，所以它们和读标记表不重复；它们的作用是把未读判定变成「一行已经在手上的记录里两个列比大小」，而不是扫一遍消息表。
+
+### 内部备注不算「员工开口了」
+
+写内部备注不动这两个时间戳。备注是员工的内部记账，发起人看不到它，把它算成「员工侧说话了」会给用户一个他永远不会看到内容的徽标。
+
+### 读标记的写入是幂等的
+
+`ReadMarker.mark_read!` 用 `insert_all` + `ON CONFLICT DO UPDATE`，而不是「查一次、没有就建」：
+
+- **并发**：双击一张工单会发两个请求，「查一次、没有就建」会让两个请求都查不到、都去插入，第二个撞唯一索引报 500——把一次普通的双击变成一个错误页。
+- **单调性**：冲突时取 `GREATEST(旧值, 新值)`。普通 upsert 会让先发出的旧请求在恰好后提交时把标记**往回移**，于是刚看过的消息又变成未读。
+
+---
+
+## 附件
+
+新建工单和回复都支持附件，走 Discourse 自己的上传通道（`POST /uploads.json`），不是插件另起一套。
+
+### 为什么不建 `ticketing_system_uploads` 表
+
+核心已经拥有上传：它创建记录、按 SHA1 去重、知道文件存在哪里，还有最容易漏掉的一点——**它会为 `secure_uploads` 论坛重写 URL**。一个自己存 `upload_id` 列的插件白拿前三样，静默丢掉第四样。
+
+所以关联用核心的 `UploadReference`（它本身就是一张多态关联表），载荷由核心的 `UploadSerializer` 生成：
+
+```ruby
+UploadSerializer#url
+# => object.for_site_setting ? object.url
+#                          : UrlHelper.cook_url(object.url, secure: SiteSetting.secure_uploads? && object.secure)
+```
+
+手搓一个哈希看起来完全正确——JSON 里字段齐全、数据库行也对——但在开了 secure uploads 的论坛上返回的是**原始存储路径**，浏览器取不到，附件 404。`lib/ticketing_system/attachments.rb` 里有完整说明。
+
+### 附件不会被孤儿清理删掉
+
+核心的 `clean_up_uploads` 任务会删掉没有任何引用指向的上传。它的排除列表里有一条是「通过 `UploadReference` 关联到非 `Post` 的东西的上传」，SQL 是 `LEFT JOIN upload_references ur ON ur.upload_id = uploads.id AND ur.target_type != 'Post'`。
+
+也就是说，挂在 `TicketingSystem::Message` 上的附件**恰恰因为它的 target 不是 Post 而被排除在删除范围之外**。这个结论反直觉，但它是走 `UploadReference` 而不是自建列的又一个理由。
+
+### 已知限制：secure uploads 论坛
+
+在开启了 `secure_uploads` 的论坛上，工单附件会被判定为 secure（`ticketing_system_message` / `TicketingSystem::Message` 都不在 `UploadSecurity::PUBLIC_TYPES` / `PUBLIC_UPLOAD_REFERENCE_TYPES` 里，所以不算公开），于是经由 `/secure-uploads/` 提供。
+
+但 `SecureUploadEndpointHelpers#check_secure_upload_permission` 只在**上传带 `access_control_post_id` 时**才做逐文件 ACL，而工单附件没有 post。剩下的一道检查是「必须已登录」。
+
+所以在这类论坛上，附件由「已登录 + URL 里有一段猜不出的 SHA1」保护，但**没有**被限定到「能看见这张工单的人」，不像私信附件那样。要补上就得让核心的 guardian 认识工单，那是比这个插件该对核心上传路径做的更大的改动。这一点是**记录在案**的，不是被掩盖的——刻意没有调用 `UploadSecurity.register_custom_public_type`，因为把工单附件注册成公开类型会削弱隐私语义，方向正好相反。
+
+### 服务端校验
+
+客户端的选择器只是便利。id 是请求参数，什么都能是，所以 `Attachments.validate!` 会重新查一遍库：
+
+- 附件功能是否开启；
+- 数量是否超过上限；
+- 每个 id 是否真的存在（`unknown_attachment`——不存在的 id 是报错，不是静默丢弃，否则用户会看到一条没带附件的回复且不知道为什么）；
+- **上传者是否就是发帖人**（`attachment_not_owned`）——没有这一条，任何猜到别人 upload id 的人都能把那个文件钉在自己的消息上，然后通过自己控制的工单把它读回来；
+- 扩展名是否在白名单内。
+
+---
+
 ## 设置
 
-全部 21 项都在 **管理 → 设置 → Plugins** 分类下（`config/settings.yml` 的顶层键是 `plugins:`）。
+全部 25 项都在 **管理 → 设置 → Plugins** 分类下（`config/settings.yml` 的顶层键是 `plugins:`）。
 
 ### 开关与入口
 
@@ -143,19 +228,32 @@ open ──▶ in_progress ──▶ pending ──▶ resolved ──▶ closed
 | `ticketing_system_reply_per_hour` | `30` | 1–500（每人每小时，0 关闭） |
 | `ticketing_system_list_page_size` | `20` | 5–100 |
 
+### 附件
+
+| 设置 | 默认 | 范围 | 说明 |
+| --- | --- | --- | --- |
+| `ticketing_system_max_attachments` | `5` | 0–20 | 单条消息的附件上限。**0 表示关闭附件功能**（前端不渲染选择器，服务端拒绝带 `upload_ids` 的请求） |
+| `ticketing_system_allowed_upload_extensions` | 空 | 列表 | 允许的扩展名，空表示不限制。大小写与开头的点都会被归一化掉 |
+
+上限在服务端还会再夹一次 `Attachments::MAX_ATTACHMENTS_CEILING`（20），所以管理后台里填错一个数字不会变成一次无上限的写入。
+
 ### SLA 与通知
 
 | 设置 | 默认 |
 | --- | --- |
 | `ticketing_system_first_response_hours` | `24` |
 | `ticketing_system_resolution_hours` | `72` |
+| `ticketing_system_overdue_reminders` | `true` |
+| `ticketing_system_auto_close_days` | `7` |
 | `ticketing_system_notify_staff` | `true` |
 | `ticketing_system_notify_requester` | `true` |
 | `ticketing_system_notify_assignee` | `true` |
 
-SLA 截止时间是**读取时**由 `created_at` 推导出来的，不是定时任务写进库的。插件刻意不带任何后台任务，所以没有可漂移的状态，也没有需要运维的调度器。
+SLA 截止时间仍然是**读取时**由 `created_at` 推导出来的，没有把截止时间写进库，所以统计面板和详情页永远算的是同一件事，也不存在一个需要随设置变更回填的列。后台任务只是**扫描**这些推导出来的截止时间（见下面的「后台任务」）。
 
 部门可以在自己的记录上覆盖 SLA 小时数与默认优先级；为空时回落到上面两个全局设置。
+
+`ticketing_system_auto_close_days` 为 0 表示不自动关闭。
 
 ---
 
@@ -171,6 +269,8 @@ SLA 截止时间是**读取时**由 `created_at` 推导出来的，不是定时�
 | 改优先级 | 员工；发起人受 `allow_requester_priority` 约束 |
 | 指派 | 员工 |
 | 改部门 | 员工（发起人仅在工单仍未分配时） |
+| 加附件 | 回复工单的人；且只能加**自己上传的**文件 |
+| 看「谁已读」 | 员工（发起人看不到，服务端下发空数组） |
 | 部门的增 / 改 / 删 | **仅管理员** |
 
 前端渲染哪些按钮和权限判断共用 `lib/ticketing_system/permissions.rb`，但**服务端会重新判断一遍**。界面是便利，不是管控。
@@ -186,14 +286,18 @@ SLA 截止时间是**读取时**由 `created_at` 推导出来的，不是定时�
 | `GET` | `/tickets/api/meta` | 部门列表、状态与优先级词表（已翻译）、可用作用域、当前用户能力、未读数 |
 | `GET` | `/tickets/api/stats` | 统计面板的数据，仅员工 |
 | `GET` | `/tickets/api/tickets` | 列表。参数：`scope` `status` `priority` `department` `assignee` `search` `sort` `page` |
-| `POST` | `/tickets/api/tickets` | 新建工单 |
-| `GET` | `/tickets/api/tickets/:id` | 详情（含对话流与时间线） |
-| `POST` | `/tickets/api/tickets/:id/messages` | 回复或写内部备注 |
+| `POST` | `/tickets/api/tickets` | 新建工单。可选 `upload_ids` |
+| `GET` | `/tickets/api/tickets/:id` | 详情（含对话流、附件、时间线、「谁已读」） |
+| `POST` | `/tickets/api/tickets/:id/messages` | 回复或写内部备注。可选 `upload_ids` |
 | `POST` | `/tickets/api/tickets/:id/actions` | 状态变更，用 `operation` 区分 |
 | `GET` | `/tickets/api/departments` | 部门列表 |
 | `POST` | `/tickets/api/departments` | 新建部门（管理员） |
 | `PUT` | `/tickets/api/departments/:id` | 修改部门（管理员） |
 | `DELETE` | `/tickets/api/departments/:id` | 删除部门（管理员，有工单时拒绝） |
+
+`upload_ids` 是**逗号分隔**的上传 id（`"12,34"`），也可以传成数组——`Attachments.normalize_ids` 两种都收。文件本身先走核心的 `POST /uploads.json` 上传（`upload_type=ticketing_system_message`），拿到 id 再随消息提交。前端用逗号拼接而不是数组，是因为数组在 jQuery 序列化后的形状依赖 `traditional` 开关，一旦形状变了 Rails 只会保留最后一个值，附件会静默少一个。
+
+`GET /tickets/api/tickets/:id` 会**顺带**给当前用户写一条读标记——打开详情页就是「已读」这个动作，没有单独的「标记已读」接口。
 
 `POST /tickets/api/tickets/:id/actions` 的 `operation` 取 `status` / `priority` / `assign` / `department`：
 
@@ -229,10 +333,60 @@ Notification.types[:ticketing_system] = 5000
 | `staff_reply` | 发起人 | `notify_requester` |
 | `assigned` | 被指派者（自己指派给自己不发） | `notify_assignee` |
 | `status_changed` | 发起人，且仅当改为 `resolved` / `closed` | `notify_requester` |
+| `sla_breached` | 部门员工组（或全局员工组） | `overdue_reminders` + `notify_staff` |
+| `auto_closed` | 发起人 | `notify_requester` |
 
 内部备注**不产生任何通知**：用户看不见它，通知了就是 bug；而员工刚写完的备注再通知全体员工，会让共享收件箱的徽标失去意义。
 
+`status_changed` 只在改为 `resolved` / `closed` 时发。每一次内部流转（`open` → `in_progress`）都发一条，只会把人训练成忽略这些通知。
+
+`sla_breached` 只发给员工，不发给发起人：一张「你还没收到回复」的工单，用户没有任何可做的动作，而告诉他「你的工单被无视了」是一种客服反模式。能改变行为的提醒是发给员工的那一条。
+
+`sla_breached` 和 `auto_closed` 由定时任务写入，**没有发言人**，所以通知条目的发言人标签是空的。这两条（以及按 `breach` 分流的 `sla_breached_first_response` / `sla_breached_resolution`）因此写成**完整句子**而不是短语——没有主语的短语（「超出了时限」）读起来是残句。
+
 通知里 `topic_id` 是空的，这是刻意的。核心的三处相关逻辑都容忍这一点（`belongs_to_required_by_default = false`、`scope :visible` 的 `LEFT JOIN` 放行空 topic、`NotificationEmailer` 用 `respond_to?` 兜底所以不会尝试发信），`lib/ticketing_system/notifier.rb` 里有逐条说明。
+
+---
+
+## 后台任务
+
+两个 Sidekiq 定时任务，都只是**薄封装**：逻辑在 `lib/ticketing_system/` 里，任务类只负责调用。
+
+| 任务类 | 频率 | 逻辑 | 做什么 |
+| --- | --- | --- | --- |
+| `Jobs::TicketingSystemSlaSweep` | 每 15 分钟 | `lib/ticketing_system/sla_sweeper.rb` | 找出已超过首次响应或解决时限、且还没提醒过的工单，给员工发一次 `sla_breached` 通知 |
+| `Jobs::TicketingSystemAutoClose` | 每天 | `lib/ticketing_system/auto_closer.rb` | 把 `resolved` 超过 `ticketing_system_auto_close_days` 天的工单改成 `closed` |
+
+### 为什么逻辑在 `lib/` 而不在任务类里
+
+任务类在 `Jobs::` 命名空间下、由 Sidekiq 调用，在测试和 Rails console 里不方便直接跑。把逻辑放进一个普通的类（`SlaSweeper.call` / `AutoCloser.call`），就能在 console 里手工触发一次、观察结果，而不必等 15 分钟。
+
+### 插件里的 `app/jobs/scheduled` 必须显式 eager load
+
+Discourse 的 `Jobs::Scheduled` 是通过 `MiniScheduler` 收集的，而 MiniScheduler 只认**已经加载过的**常量。生产环境里 `app/jobs/scheduled` 不在自动加载路径上，于是任务会静默地不存在——没有报错，只是永远不跑。
+
+`lib/ticketing_system/engine.rb` 里的写法来自核心官方的 `discourse-data-explorer`：
+
+```ruby
+scheduled_job_dir = "#{config.root}/app/jobs/scheduled"
+config.to_prepare { Rails.autoloaders.main.eager_load_dir(scheduled_job_dir) }
+```
+
+### 幂等：`sla_notified_at`
+
+每 15 分钟扫一次，但一张超时的工单只能提醒**一次**。做法是先 claim 再通知：
+
+```ruby
+claimed = Ticket.where(id: ticket.id, sla_notified_at: nil)
+                .update_all(sla_notified_at: now, updated_at: now)
+return false if claimed.zero?
+```
+
+条件 UPDATE 是原子的，所以两个并发跑的任务实例也只有一个能拿到它。代价是「claim 成功但通知失败」会丢掉那一次提醒（进程崩溃、通知写入报错）。这个方向是刻意选的：**丢一次提醒**远好于**每 15 分钟重复提醒**——后者会让人关掉整个功能。
+
+### 自动关闭不动 `last_activity_at`
+
+关掉一张工单是**清理**，不是「有动态」。改 `last_activity_at` 会让它在按最近动态排序的列表里跳到最前面，把一张没人管的旧工单推到正在处理的工单上面。
 
 ---
 
@@ -242,37 +396,42 @@ Notification.types[:ticketing_system] = 5000
 plugin.rb                          元数据、require_relative 清单、资源注册、通知类型
 config/
   routes.rb                        JSON API + 页面外壳 + engine 挂载
-  settings.yml                     21 项设置
+  settings.yml                     25 项设置
   locales/{client,server}.{en,zh_CN}.yml
-db/migrate/                        4 张表：departments / tickets / messages / events
+db/migrate/                        5 张表：departments / tickets / messages / events / read_markers
 lib/ticketing_system/              **不自动加载，必须 require_relative**
   constants.rb                     状态、优先级、事件种类、作用域、排序
   errors.rb                        领域异常，各自带 HTTP 状态码
   permissions.rb                   唯一的权限判断来源，服务端与前端共用
-  engine.rb                        Rails::Engine
+  engine.rb                        Rails::Engine（含 app/jobs/scheduled 的 eager load）
   ticket_query.rb                  列表的筛选/排序/分页
-  ticket_creator.rb                新建工单
-  message_creator.rb               回复与内部备注
+  ticket_creator.rb                新建工单（含附件关联与读标记）
+  message_creator.rb               回复与内部备注（含附件关联与读标记）
   ticket_updater.rb                状态/优先级/指派/部门变更
+  attachments.rb                   附件策略：上限、白名单、归属校验、序列化
+  sla_sweeper.rb                   SLA 超时扫描（被定时任务调用）
+  auto_closer.rb                   resolved 超期归档（被定时任务调用）
   statistics.rb                    统计面板的查询
   notifier.rb                      Discourse 通知
   rate_limiter.rb                  包装核心的 RateLimiter
   serialization.rb                 AMS 基类
-  ticket_serialization.rb          工单的状态/优先级标签
+  ticket_serialization.rb          工单的状态/优先级标签与未读判定
+  version.rb                       版本号
 app/                               **由 Zeitwerk 自动加载，禁止 require_relative**
-  models/ticketing_system/         4 个模型
+  models/ticketing_system/         5 个模型（ticket / message / event / department / read_marker）
   controllers/ticketing_system/    8 个控制器
   serializers/ticketing_system/    5 个序列化器
+  jobs/scheduled/                  2 个定时任务（由 engine 显式 eager load）
   views/ticketing_system/pages/    无 JS 时的服务端外壳
 assets/
   javascripts/discourse/
     ticketing-system-route-map.js  Ember 路由表（必须导出「函数」）
     routes/                        index / new / show / admin
     templates/                     对应的 .gjs 路由模板
-    components/                    9 个组件（列表、详情、编辑器、管理面板…）
+    components/                    10 个组件（列表、详情、编辑器、附件选择器、管理面板…）
     services/                      把 currentUser 上的能力包成 service
     initializers/                  导航入口 + 通知渲染器注册
-    lib/                           API 路径、格式化、通知渲染器工厂
+    lib/                           API 路径、格式化、通知渲染器工厂、附件上传状态机
   stylesheets/                     用户侧 + 管理侧
 scripts/                           提交前跑的闸门，见下
 ```
@@ -304,17 +463,9 @@ Discourse 的惯例是把插件管理界面挂在 `/admin/plugins` 下。这个�
 
 以下功能**刻意没有做**，写在这里以免被当成 bug：
 
-**附件 / 上传。** 一条消息目前只能是纯文本。没有 `ticketing_system_max_attachments` 或 `ticketing_system_allowed_upload_extensions` 这类设置，因为**设置先于功能上线**会在管理后台留下两个改了也没用的开关——而一个把扩展名列表收窄的管理员会以为自己已经限制了可发布的内容。
-
-真要做的时候有两件事必须注意：关联要走核心的 `UploadReference`，载荷要用 `UploadSerializer` 生成而不是手搓哈希——`UploadSerializer#url` 是 `secure_uploads` 重写到 `/secure-uploads/…` 的地方，手搓的哈希返回的是原始存储路径，在开了 secure uploads 的论坛上浏览器取不到。
-
-**逐个员工的已读追踪。** 未读计数是**每张工单两个计数器**（`staff_unread_count` / `requester_unread_count`），不是每个员工一份。所以员工 A 打开工单会把员工 B 的徽标也清掉。做对需要一张 `(ticket_id, user_id)` 的关联表，代价是每张工单每个员工一行——对一个共享收件箱来说，团队级的「有人看过了」通常正是想要的语义，所以这一版按这个语义实现。
-
 **邮件通知。** 通知只出现在站内通知面板里。核心的 `NotificationEmailer` 对未知通知类型是 `respond_to?` 兜底、静默跳过，所以插件通知**不会**触发邮件，也不会报错。要发信得注册 `email_notification_filters` 并自己写模板。
 
-**后台任务。** 没有 Sidekiq 任务。SLA 截止时间在读取时推导，所以没有需要调度、需要监控、会漂移的东西。
-
-**归档 / 自动关闭。** `resolved` 不会自动变成 `closed`。
+**secure uploads 论坛上的逐工单附件权限。** 附件受「已登录 + 不可猜的 URL」保护，但没有被限定到能看见这张工单的人。要补上就得让核心的 guardian 认识工单。见上面「附件」一节的「已知限制」。
 
 **工单合并、标签、自定义字段、SLA 升级策略。** 都不在 v1 范围内。
 
@@ -334,7 +485,7 @@ sh scripts/selftest.sh
 | --- | --- |
 | 1/4 | `scripts/check-templates.py` — `.gjs` 模板的作用域，以及剥掉模板后的 JS 语法 |
 | 2/4 | `scripts/validate.py` — 12 项跨文件静态一致性检查 |
-| 3/4 | `scripts/check-ruby.rb` — 37 个 `.rb` 的语法、`.erb` 的可编译性，以及 Ruby 解析器的警告 |
+| 3/4 | `scripts/check-ruby.rb` — 44 个 `.rb` 的语法、`.erb` 的可编译性，以及 Ruby 解析器的警告 |
 | 4/4 | `scripts/selftest.py` — 变异自测：向代码注入 12 处缺陷，确认前三个校验器确实报错，然后恢复文件 |
 
 也可以用 `npm run lint`（等价）、`npm run validate`、`npm run templates`、`npm run ruby`、`npm run mutation` 单独跑某一项。
@@ -367,6 +518,8 @@ sh scripts/selftest.sh
 - **Ember 路由表必须导出「函数」**（`export default function () { this.route(...) }`）。对象形式 `{ resource: "x", map() {} }` 是「挂到已有节点」，插件自有顶层路由名不在树中，会被静默丢弃。
 - **`register_asset` 不要带 `:admin`。** `:admin` 会把样式放进只在 `/admin` 路由加载的 bundle，而这个插件的管理页在 `/tickets/admin`。
 - **客户端 locale 文件必须在 `js:` 下。** 服务端 `I18n.t` 和客户端 `i18n()` 是两个 I18n 实例，同一个键两边都要写一遍。
+- **上传文件时 `processData: false` / `contentType: false` 不能省。** jQuery 不会因为 `data` 是 `FormData` 就自动改用 multipart——它照常走 `jQuery.param()`，而 `FormData` 没有任何可枚举的自有属性，结果是**一个空请求体**，服务端报「没有文件」。CSRF 反过来不用自己设：核心的全局 `$.ajaxPrefilter` 会给所有非 crossDomain 请求注入 `X-CSRF-Token`。
+- **插件里的 `app/jobs/scheduled` 必须显式 eager load**，否则任务静默地不存在（见「后台任务」）。
 
 ### 排查
 
@@ -377,6 +530,12 @@ sh scripts/selftest.sh
 **界面全是方括号键名，但错误提示是正常中文。** 说明 `client.*.yml` 少了 `js:` 那一层——服务端查询照常工作，客户端查询全部落空。
 
 **整个插件都失效，控制台有一行 `throw new Error(... not in scope ...)`。** 某个 `.gjs` 用了未 import 的名字。跑 `sh scripts/py.sh scripts/check-templates.py --verbose` 定位。
+
+**附件传上去了，但点开是 404，而 JSON 里字段看着都对。** 说明返回的是原始存储路径，而不是 `UploadSerializer#url` 重写后的 `/secure-uploads/…`。检查是不是有人手搓了上传的哈希（`lib/ticketing_system/attachments.rb` 说明了为什么不能这么做）。这个症状只在开了 `secure_uploads` 的论坛上出现。
+
+**通知里少了一条超时提醒。** 定时任务只在 `ticketing_system_overdue_reminders` 与 `ticketing_system_notify_staff` 都打开时发通知；另外 `sla_notified_at` 一旦写上就不会再提醒第二次（这是幂等设计，不是 bug）。要重测，先把那张工单的 `sla_notified_at` 置空。
+
+**「已读」区块一直是空的。** 它只对员工渲染，而且服务端会**排除发起人本人**——这个列表要回答的是「团队里有没有人看到过」。员工自己打开工单会写入自己的读标记，所以另一位员工应该马上能看到。
 
 ---
 

@@ -12,6 +12,8 @@ import {
   pagePath,
   serverErrorMessage,
 } from "../../lib/ticketing-system";
+import TicketingSystemAttachmentUploader from "../../lib/attachment-uploader";
+import TicketingSystemAttachmentPicker from "./attachment-picker";
 import TicketingSystemIcon from "./icon";
 
 // 新建工单表单。
@@ -33,6 +35,20 @@ export default class TicketingSystemNewTicketForm extends Component {
   @tracked priority = null;
   @tracked submitting = false;
   @tracked error = null;
+
+  // 与回复框同一份状态机，见 lib/attachment-uploader.js。
+  // 延迟创建的理由同 composer.gjs：`@service` 注入依赖 owner，在字段初始化
+  // 阶段取值不可靠。
+  _uploader = null;
+
+  get uploader() {
+    if (!this._uploader) {
+      this._uploader = new TicketingSystemAttachmentUploader(
+        this.ticketingSystem,
+      );
+    }
+    return this._uploader;
+  }
 
   // 只有员工，或论坛显式放开了 `allow_requester_priority`，才能选优先级。
   // 这条规则在服务端也有（TicketCreator#resolve_priority），两边都判断是故意的：
@@ -99,13 +115,17 @@ export default class TicketingSystemNewTicketForm extends Component {
     );
   }
 
-  // 提交按钮的禁用条件**只**看「必填项是否为空」。
+  // 提交按钮的禁用条件**只**看「必填项是否为空」，外加一个例外：附件还在传。
   //
   // 标题太短不在这里拦：那样用户会看到一个点不动的按钮，却不知道为什么 ——
   // 短标题是能修好的，把它交给 submit 里的校验并给出具体原因。
+  //
+  // 附件在传时拦一下是另一个道理：那些条目还没有 upload id，提交出去会得到
+  // 一张「列表里明明有三个文件、实际一个都没带上」的工单，而用户不会知道。
   get disabled() {
     return (
       this.submitting ||
+      this.uploader.uploading ||
       this.trimmedTitle.length === 0 ||
       this.body.trim().length === 0
     );
@@ -176,10 +196,15 @@ export default class TicketingSystemNewTicketForm extends Component {
           body: this.body,
           department: this.department,
           priority: this.canChoosePriority ? this.priorityValue : null,
+          // 逗号拼接，理由见 composer.gjs：数组的序列化形状依赖 jQuery 的
+          // `traditional` 开关，而那种失效是静默少一个附件。
+          // 空列表在这里会被 `compact()` 摘掉，服务端读到 nil 并按「无附件」处理。
+          upload_ids: this.uploader.uploadIds.join(","),
         }),
       });
 
       this.error = null;
+      this.uploader.clear();
       // 未读计数与（员工视角的）队列都可能已经变了。
       this.ticketingSystem.reload();
 
@@ -238,6 +263,8 @@ export default class TicketingSystemNewTicketForm extends Component {
           ></textarea>
           <span class="ts-field__hint">{{this.counterLabel}}</span>
         </label>
+
+        <TicketingSystemAttachmentPicker @uploader={{this.uploader}} />
 
         <div class="ts-form__row">
           <label class="ts-field">

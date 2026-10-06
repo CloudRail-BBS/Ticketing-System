@@ -17,6 +17,24 @@ module ::TicketingSystem
                inverse_of: :messages
     belongs_to :user, class_name: "User", foreign_key: :user_id
 
+    # Attachments, through core's own polymorphic join table.
+    #
+    # NOT a column on this model, and not a plugin-owned join table either: see
+    # TicketingSystem::Attachments for the two things core does with uploads that
+    # a hand-rolled association silently loses (the `secure_uploads` URL rewrite,
+    # and the fact that a non-Post target type is what keeps the file out of the
+    # orphan cleanup job).
+    #
+    # `dependent: :destroy` removes the REFERENCE when a message is deleted, not
+    # the upload — which is core's behaviour for a deleted post too, and the
+    # right one: the same upload may be referenced elsewhere.
+    has_many :upload_references,
+             class_name: "UploadReference",
+             as: :target,
+             dependent: :destroy
+
+    has_many :uploads, through: :upload_references, source: :upload
+
     validates :body, presence: true
     validate :body_length_within_settings
 

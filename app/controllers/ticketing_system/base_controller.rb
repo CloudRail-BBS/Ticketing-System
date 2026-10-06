@@ -84,20 +84,30 @@ module ::TicketingSystem
       ticket
     end
 
-    # Opening a ticket clears the reader's unread counter.
+    # Opening a ticket records that THIS reader has seen it.
     #
-    # `update_columns` on purpose: it skips `updated_at` AND leaves
-    # `last_activity_at` alone. Bumping either would make simply reading a ticket
-    # jump it to the top of everyone's queue, which is the opposite of what a
-    # triage list should do.
+    # One row per (ticket, reader) in ReadMarker, not a counter on the ticket:
+    # a shared counter would clear the badge for the whole team the first time
+    # anybody looked, which defeats the purpose of the badge on a queue more than
+    # one person works. See ReadMarker for the full reasoning.
+    #
+    # Nothing here touches `updated_at` or `last_activity_at` on the ticket, and
+    # that is the point: simply reading a ticket must not jump it to the top of
+    # everyone's queue. The old counter version used `update_columns` to achieve
+    # the same thing; this version cannot bump the ticket at all, because it
+    # writes a different table.
     def mark_read!(ticket)
-      now = Time.zone.now
+      ReadMarker.mark_read!(ticket: ticket, user: current_user)
+    end
 
-      if staff?
-        ticket.update_columns(staff_unread_count: 0, staff_last_read_at: now)
-      else
-        ticket.update_columns(requester_unread_count: 0, requester_last_read_at: now)
-      end
+    # `{ticket_id => last_read_at}` for the whole page, in one query.
+    #
+    # The serializer can fall back to a per-row lookup (see
+    # TicketSerialization#read_marker_at), so forgetting to pass this is a
+    # performance problem rather than a wrong answer — which is deliberate, since
+    # a wrong answer here is an unread badge that lies.
+    def read_markers_for(tickets)
+      ReadMarker.last_read_map(Array(tickets).map(&:id), current_user&.id)
     end
 
     # One query for the whole page instead of one per row.

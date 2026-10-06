@@ -46,12 +46,37 @@ const EVENT_KEYS = {
   staff_reply: "ticketing_system.notifications.staff_reply",
   assigned: "ticketing_system.notifications.assigned",
   status_changed: "ticketing_system.notifications.status_changed",
+  sla_breached: "ticketing_system.notifications.sla_breached",
+  auto_closed: "ticketing_system.notifications.auto_closed",
+};
+
+// `sla_breached` 带一个更具体的 `breach`，用它分流到更准确的一句话。
+//
+// 后两个事件由定时任务写入，没有发言人，条目的 label 是空的 —— 所以它们的文案
+// 是**完整句子**而不是短语，见 config/locales/client.*.yml 里的说明。
+const SLA_BREACH_KEYS = {
+  first_response: "ticketing_system.notifications.sla_breached_first_response",
+  resolution: "ticketing_system.notifications.sla_breached_resolution",
 };
 
 export function buildNotificationDirector(NotificationTypeBase) {
   return class extends NotificationTypeBase {
     get data() {
       return this.notification.data ?? {};
+    }
+
+    // 事件 → 文案键。
+    //
+    // 未知事件回退到 `undefined`，由 description 兜到工单标题上 —— 服务端加了
+    // 事件而这里没跟上时，用户看到的是标题，而不是一个原始键名。
+    #phraseKey() {
+      const event = this.data.event;
+
+      if (event === "sla_breached") {
+        return SLA_BREACH_KEYS[this.data.breach] ?? EVENT_KEYS.sla_breached;
+      }
+
+      return EVENT_KEYS[event];
     }
 
     // 指向工单详情页。`ticketPath` 内部走 `getURL()`，子目录安装（/forum）下
@@ -73,8 +98,8 @@ export function buildNotificationDirector(NotificationTypeBase) {
     }
 
     get description() {
-      const key = EVENT_KEYS[this.data.event];
-      // `data.event` 只有 Notifier 写进去的那五个取值。出现别的值意味着服务端
+      const key = this.#phraseKey();
+      // `data.event` 只有 Notifier 写进去的那几个取值。出现别的值意味着服务端
       // 加了事件而这里没跟上 —— 退回工单标题，至少不显示一个原始键名。
       const phrase = key
         ? i18n(key, {

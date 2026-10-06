@@ -73,6 +73,35 @@ module ::TicketingSystem
       )
     end
 
+    # Fired by the SLA sweep job, to staff only.
+    #
+    # Deliberately not sent to the requester: they have no action to take on a
+    # ticket that is late for a reply they have not received, and telling them
+    # their ticket is being ignored is a support anti-pattern. The staff-facing
+    # reminder is the one that changes behaviour.
+    #
+    # `actor` is nil, so the payload's `username` is nil — which the frontend
+    # renderer already tolerates (it falls back to an empty label rather than
+    # rendering `[missing %{username} value]`).
+    def sla_breached(ticket, breach:)
+      return unless SiteSetting.ticketing_system_overdue_reminders
+      return unless SiteSetting.ticketing_system_notify_staff
+
+      recipients = staff_recipients(ticket) - [ticket.requester_id]
+      deliver(recipients, ticket, event: "sla_breached", extra: { breach: breach.to_s })
+    end
+
+    # Fired by the auto-close job, to the requester only.
+    #
+    # Not to staff: they already saw the ticket when it was resolved, and the
+    # closure is housekeeping they asked for by leaving it. The requester is the
+    # one who might still act on it, so this is the last useful nudge.
+    def auto_closed(ticket)
+      return unless SiteSetting.ticketing_system_notify_requester
+
+      deliver([ticket.requester_id], ticket, event: "auto_closed")
+    end
+
     # The department's own staff group when it has one, otherwise the plugin-wide
     # staff groups. The assignee is always included even if they are not in
     # either, because they are the one person who has explicitly taken the work.

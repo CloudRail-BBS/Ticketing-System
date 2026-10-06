@@ -74,6 +74,7 @@ end
 require_relative "lib/ticketing_system/version"
 require_relative "lib/ticketing_system/constants"
 require_relative "lib/ticketing_system/errors"
+require_relative "lib/ticketing_system/attachments"
 require_relative "lib/ticketing_system/permissions"
 require_relative "lib/ticketing_system/serialization"
 require_relative "lib/ticketing_system/ticket_serialization"
@@ -84,6 +85,8 @@ require_relative "lib/ticketing_system/ticket_creator"
 require_relative "lib/ticketing_system/message_creator"
 require_relative "lib/ticketing_system/ticket_updater"
 require_relative "lib/ticketing_system/statistics"
+require_relative "lib/ticketing_system/sla_sweeper"
+require_relative "lib/ticketing_system/auto_closer"
 require_relative "lib/ticketing_system/engine"
 
 enabled_site_setting :ticketing_system_enabled

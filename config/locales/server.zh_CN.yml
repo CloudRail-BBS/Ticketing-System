@@ -25,6 +25,8 @@ zh_CN:
       department_changed: "部门变更"
       reopened: "重新打开"
       closed: "关闭"
+      sla_breached: "超出服务时限"
+      auto_closed: "解决后超期自动关闭"
 
     page:
       title: "工单"
@@ -66,6 +68,11 @@ zh_CN:
       too_many_open_tickets: "你已有 %{count} 个未完成工单，请等待其中部分工单处理完成。"
       create_rate_limited: "每小时最多可创建 %{count} 个工单，请稍后再试。"
       reply_rate_limited: "每小时最多可发送 %{count} 条回复，请稍后再试。"
+      attachments_disabled: "附件功能未开启。"
+      too_many_attachments: "单条消息最多只能附带 %{max} 个文件。"
+      unknown_attachment: "你附带的文件中有已失效的，请重新上传。"
+      attachment_not_owned: "只能附带你自己上传的文件。"
+      attachment_extension_not_allowed: "不支持附带该类型的文件：%{extensions}"
 
   activerecord:
     errors:
@@ -95,7 +102,11 @@ zh_CN:
     ticketing_system_reply_per_hour: "单个用户每小时可发送的回复数上限。设为 0 表示不限制。"
     ticketing_system_first_response_hours: "首次员工回复超过多少小时算逾期。工单所属部门未单独设置时使用该值。"
     ticketing_system_resolution_hours: "工单超过多少小时未解决算逾期。工单所属部门未单独设置时使用该值。"
+    ticketing_system_overdue_reminders: "工单超过首次回复或解决时限时通知员工。"
+    ticketing_system_auto_close_days: "已解决的工单等待用户确认多少天后自动关闭。设为 0 表示从不自动关闭。"
     ticketing_system_list_page_size: "每页显示的工单数量。"
+    ticketing_system_max_attachments: "单条工单消息最多可附带多少个文件。设为 0 表示禁用附件。"
+    ticketing_system_allowed_upload_extensions: "允许附带在工单消息中的文件扩展名。留空表示沿用论坛本身允许的类型。"
     ticketing_system_notify_staff: "工单创建或提交者回复时通知员工。"
     ticketing_system_notify_requester: "员工回复或解决工单时通知提交者。"
     ticketing_system_notify_assignee: "工单被指派给某位员工时通知该员工。"

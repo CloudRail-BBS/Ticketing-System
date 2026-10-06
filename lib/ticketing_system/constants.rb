@@ -34,6 +34,12 @@ module ::TicketingSystem
     # These are strings, not integers: the table is an append-only log that is
     # read by humans and by the ticket timeline, so a readable value is worth
     # more than a byte. It also means adding a kind never touches existing rows.
+    #
+    # The last two are written by the scheduled jobs rather than by a person.
+    # `EventSerializer#kind_label` looks the label up with `default: kind`, so a
+    # kind added here without a matching translation degrades to its machine name
+    # instead of rendering a raw i18n key — but scripts/validate.py's enum check
+    # does not cover this list, so the translations have to be remembered.
     EVENT_KINDS = %w[
       created
       replied
@@ -44,6 +50,8 @@ module ::TicketingSystem
       department_changed
       reopened
       closed
+      sla_breached
+      auto_closed
     ].freeze
 
     # Staff inbox scopes the API accepts.
