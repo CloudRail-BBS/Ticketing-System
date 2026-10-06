@@ -14,7 +14,7 @@
 # again. Every install created from the earlier revision therefore kept the OLD
 # columns and never got the new ones, while the code went on to read them on
 # every request — a 500 whose message was a Postgres undefined-column error.
-# `20261006000006_add_ticketing_system_per_reader_unread.rb` repairs those
+# `20261006000007_add_ticketing_system_per_reader_unread.rb` repairs those
 # installs.
 #
 # The rule this file exists to demonstrate: a migration is append-only once it

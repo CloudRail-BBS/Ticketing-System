@@ -399,7 +399,7 @@ config/
   settings.yml                     25 项设置
   locales/{client,server}.{en,zh_CN}.yml
 db/migrate/                        5 张表：departments / tickets / messages / events / read_markers
-                                   6 个迁移；`..._000006` 只用来把 f98e1bf 之前建的库补齐
+                                   6 个迁移；`..._000007` 只用来把 f98e1bf 之前建的库补齐
 lib/ticketing_system/              **不自动加载，必须 require_relative**
   constants.rb                     状态、优先级、事件种类、作用域、排序
   errors.rb                        领域异常，各自带 HTTP 状态码
@@ -524,7 +524,7 @@ sh scripts/selftest.sh
 - **客户端 locale 文件必须在 `js:` 下。** 服务端 `I18n.t` 和客户端 `i18n()` 是两个 I18n 实例，同一个键两边都要写一遍。
 - **上传文件时 `processData: false` / `contentType: false` 不能省。** jQuery 不会因为 `data` 是 `FormData` 就自动改用 multipart——它照常走 `jQuery.param()`，而 `FormData` 没有任何可枚举的自有属性，结果是**一个空请求体**，服务端报「没有文件」。CSRF 反过来不用自己设：核心的全局 `$.ajaxPrefilter` 会给所有非 crossDomain 请求注入 `X-CSRF-Token`。
 - **插件里的 `app/jobs/scheduled` 必须显式 eager load**，否则任务静默地不存在（见「后台任务」）。
-- **迁移只增不改。** 迁移一旦提交就不能再动——Rails 把它记在 `schema_migrations` 里，**永远不会重跑**，所以改动只对「之后才安装的库」生效，对已经跑过它的库完全无效。两边于是永久分叉，而分叉的后果取决于每个库是在哪一天装的。要改结构就新加一个迁移（`..._000006` 就是为此存在的，`..._000002` 顶部的注释记录了它被原地改过的那一次）。闸门里有一条检查专门盯这个：工作区出现「已提交的迁移被修改」就报错，把这次修改单独提交之后检查自动变绿。
+- **迁移只增不改。** 迁移一旦提交就不能再动——Rails 把它记在 `schema_migrations` 里，**永远不会重跑**，所以改动只对「之后才安装的库」生效，对已经跑过它的库完全无效。两边于是永久分叉，而分叉的后果取决于每个库是在哪一天装的。要改结构就新加一个迁移（`..._000007` 就是为此存在的，`..._000002` 顶部的注释记录了它被原地改过的那一次）。闸门里有一条检查专门盯这个：工作区出现「已提交的迁移被修改」就报错，把这次修改单独提交之后检查自动变绿。
 
 ### 排查
 
