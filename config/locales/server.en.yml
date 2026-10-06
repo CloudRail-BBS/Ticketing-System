@@ -28,10 +28,9 @@ en:
     # `default: object.kind`, so a kind added without a translation degrades to
     # its machine name rather than rendering a raw i18n key.
     #
-    # NOTE: scripts/validate.py checks the STATUSES / PRIORITIES enums against
-    # these files, but NOT Constants::EVENT_KINDS. A kind added to that list
-    # without a line here will degrade silently, so this block has to be kept in
-    # step by hand.
+    # scripts/validate.py checks every member of Constants::EVENT_KINDS against
+    # this block, so a new kind without a line here fails the gate rather than
+    # shipping a label nobody notices is missing.
     event:
       created: "Ticket created"
       replied: "Replied"

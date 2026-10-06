@@ -36,10 +36,11 @@ module ::TicketingSystem
     # more than a byte. It also means adding a kind never touches existing rows.
     #
     # The last two are written by the scheduled jobs rather than by a person.
-    # `EventSerializer#kind_label` looks the label up with `default: kind`, so a
-    # kind added here without a matching translation degrades to its machine name
-    # instead of rendering a raw i18n key — but scripts/validate.py's enum check
-    # does not cover this list, so the translations have to be remembered.
+    # Every member needs a `ticketing_system.event.<kind>` line in
+    # config/locales/server.{en,zh_CN}.yml; scripts/validate.py's enum check
+    # enforces that, because `EventSerializer#kind_label` looks the label up
+    # with `default: kind` — a missing translation degrades to the machine name
+    # instead of a visible raw i18n key, so nobody would ever file that bug.
     EVENT_KINDS = %w[
       created
       replied

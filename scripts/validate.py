@@ -7,6 +7,7 @@
     少一个 site_setting       → NoMethodError，只在第一次真正读它的时候
     API 路径拼错              → 404 页面，不是异常
     状态枚举加了成员忘了文案  → 下拉框里多一个原始键名
+    事件种类加了成员忘了文案  → 时间线上安静地显示成 `auto_closed` 这种机器名
     某个语种少一个键          → 只有那个语种的用户看得见
     errors.add 的键没有条目   → 报错信息变成 `translation missing: …`
 
@@ -532,7 +533,13 @@ def check_settings_usage() -> None:
 
 
 def ruby_constants() -> dict[str, list[str]]:
-    """从 constants.rb 里抽出 STATUSES / PRIORITIES 的键名。"""
+    """从 constants.rb 里抽出参与校验的枚举成员名。
+
+    STATUSES / PRIORITIES 是哈希字面量，EVENT_KINDS 是 %w 数组 —— 两种形状都要
+    认。只认哈希的话，EVENT_KINDS 会安静地不被检查，而「安静」正是这里要消灭的
+    东西：`EventSerializer#kind_label` 用 `default: kind` 查文案，少一条只会退化
+    成机器名，没有任何人会来报这个 bug。
+    """
     path = ROOT / "lib/ticketing_system/constants.rb"
     if not path.exists():
         return {}
@@ -551,29 +558,56 @@ def ruby_constants() -> dict[str, list[str]]:
             continue
         out[name] = re.findall(r"(\w+)\s*:", match.group("body"))
 
+    array = re.search(
+        r"EVENT_KINDS\s*=\s*%w\[(?P<body>.*?)\]\s*\.freeze", text, re.DOTALL
+    )
+    if not array:
+        warn("lib/ticketing_system/constants.rb", "没能解析出 EVENT_KINDS")
+    else:
+        out["EVENT_KINDS"] = array.group("body").split()
+
     return out
 
 
 def check_enums() -> None:
     constants = ruby_constants()
-    mapping = {"STATUSES": "status", "PRIORITIES": "priority"}
 
-    for const, namespace in mapping.items():
+    # (常量名, 文案命名空间, 要查的文案文件, 缺文案时的降级表现)
+    #
+    # STATUSES / PRIORITIES 的值会作为键名送到客户端，两种语种的客户端文案里都
+    # 得有。EVENT_KINDS 的标签是 `EventSerializer` 在服务端用 `I18n.t` 查的，只
+    # 存在于 server.*.yml —— 去 client.*.yml 里找它只会凭空报假错。
+    #
+    # 最后一列不是修饰：枚举缺文案会渲染成原始键名，一眼就能看见；而 kind_label
+    # 带 `default: kind`，缺文案只会安静地退化成机器名。后者才是静态检查真正要
+    # 兜住的那一类，因为它不会有人来报 bug。
+    mapping = (
+        ("STATUSES", "status", ("client", "server"), "会渲染成原始键名"),
+        ("PRIORITIES", "priority", ("client", "server"), "会渲染成原始键名"),
+        ("EVENT_KINDS", "event", ("server",), "会静默降级成机器名"),
+    )
+
+    for const, namespace, sides, fallback in mapping:
         names = constants.get(const)
         if not names:
             continue
+
         for locale in LOCALES:
-            for keys, label in (
-                (client_keys(locale), f"config/locales/client.{locale}.yml"),
-                (server_keys(locale), f"config/locales/server.{locale}.yml"),
-            ):
+            for side in sides:
+                if side == "client":
+                    keys = client_keys(locale)
+                    label = f"config/locales/client.{locale}.yml"
+                else:
+                    keys = server_keys(locale)
+                    label = f"config/locales/server.{locale}.yml"
+
                 for name in names:
                     full = f"{NS}.{namespace}.{name}"
                     if full not in keys:
                         error(
                             label,
                             f"`{const}` 里有 `{name}`，但缺少文案 `{full}`"
-                            f"（会渲染成原始键名）",
+                            f"（{fallback}）",
                         )
 
 
@@ -780,7 +814,7 @@ def main() -> int:
         ("Errors::* 插值参数 ↔ 文案占位符", check_error_placeholders),
         ("site_settings ↔ 文案", check_settings_locales),
         ("site_settings ↔ Ruby 用法", check_settings_usage),
-        ("状态 / 优先级枚举 ↔ 文案", check_enums),
+        ("枚举（状态 / 优先级 / 事件种类）↔ 文案", check_enums),
         ("plugin.rb 元数据", check_plugin_metadata),
         ("前端 API 路径 ↔ config/routes.rb", check_api_paths),
         ("前端相对导入可达", check_relative_imports),

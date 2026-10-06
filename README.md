@@ -486,7 +486,7 @@ sh scripts/selftest.sh
 | 1/4 | `scripts/check-templates.py` — `.gjs` 模板的作用域，以及剥掉模板后的 JS 语法 |
 | 2/4 | `scripts/validate.py` — 12 项跨文件静态一致性检查 |
 | 3/4 | `scripts/check-ruby.rb` — 44 个 `.rb` 的语法、`.erb` 的可编译性，以及 Ruby 解析器的警告 |
-| 4/4 | `scripts/selftest.py` — 变异自测：向代码注入 12 处缺陷，确认前三个校验器确实报错，然后恢复文件 |
+| 4/4 | `scripts/selftest.py` — 变异自测：向代码注入 13 处缺陷，确认前三个校验器确实报错，然后恢复文件 |
 
 也可以用 `npm run lint`（等价）、`npm run validate`、`npm run templates`、`npm run ruby`、`npm run mutation` 单独跑某一项。
 
@@ -502,6 +502,7 @@ sh scripts/selftest.sh
 | 少一个 `site_setting` | 第一次真正读它时才抛 `NoMethodError` |
 | API 路径拼错 | 一个 404 页面，不是一个异常 |
 | 状态枚举加了成员忘了文案 | 下拉框里多一个原始键名 |
+| 事件种类加了成员忘了文案 | 时间线上安静地显示成 `auto_closed` 这种机器名——`EventSerializer#kind_label` 带 `default: kind`，退化得比原始键名还隐蔽 |
 | 某个语种少一个键 | 只有那个语种的用户看得见 |
 | `errors.add` 的键没有条目 | 报错信息变成 `translation missing: …` |
 | `.gjs` 里用了未 import 的辅助函数 | **整个插件 bundle** 被换成一行 `throw new Error("… not in scope …")`，所有组件失效 |
@@ -509,7 +510,7 @@ sh scripts/selftest.sh
 
 没有一条会写日志，没有一条会让测试变红。所以这些检查必须在这里、在提交之前跑一遍。
 
-`scripts/validate.py` 的 12 项检查：YAML 可解析与客户端 `js:` 包装、两个语种的键集对齐（含叶子类型）、前端 `i18n()` 调用、服务端 `I18n.t` / `Errors::*` / `errors.add`、`Errors::*` 类名、`Errors::*` 插值参数与文案占位符、`site_settings` 与文案双向、`site_settings` 与 Ruby 用法双向、状态/优先级枚举与文案、`plugin.rb` 元数据、前端 API 路径与 `config/routes.rb`、前端相对导入可达性。
+`scripts/validate.py` 的 12 项检查：YAML 可解析与客户端 `js:` 包装、两个语种的键集对齐（含叶子类型）、前端 `i18n()` 调用、服务端 `I18n.t` / `Errors::*` / `errors.add`、`Errors::*` 类名、`Errors::*` 插值参数与文案占位符、`site_settings` 与文案双向、`site_settings` 与 Ruby 用法双向、枚举与文案（`STATUSES` / `PRIORITIES` 查两个语种的**客户端**文案，`EVENT_KINDS` 只查**服务端**文案——它的标签由 `EventSerializer` 在服务端查，去客户端文案里找只会报假错）、`plugin.rb` 元数据、前端 API 路径与 `config/routes.rb`、前端相对导入可达性。
 
 ### 几条容易踩的约定
 

@@ -172,6 +172,17 @@ MUTATIONS: list[Mutation] = [
             "    end\n  end\nend\n"
         ),
     ),
+    Mutation(
+        what="EVENT_KINDS 加了成员但没加文案（时间线会显示机器名）",
+        script=VALIDATE,
+        expect="会静默降级成机器名",
+        target="lib/ticketing_system/constants.rb",
+        # 往 %w 数组里塞一个新成员，而不是去 server.*.yml 里删一行：删文案会同时
+        # 触发「两个语种的键集对齐」检查，那样即使枚举检查是空转的，这一项也照样
+        # 变红 —— 就证明不了枚举检查本身有没有在工作了。
+        old="      auto_closed\n    ].freeze",
+        new="      auto_closed\n      selftest_probe\n    ].freeze",
+    ),
 ]
 
 
