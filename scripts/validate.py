@@ -1013,6 +1013,112 @@ def check_params_are_normalised() -> None:
 
 
 # ---------------------------------------------------------------------------
+# 返回值类型
+# ---------------------------------------------------------------------------
+
+# `Array#each` 返回**接收者本身**，不是它遍历的结果。而 Ruby 的返回值就是方法体
+# 里最后一个表达式的值 —— 所以一个以 `.each` 收尾的方法，返回的是那个集合。
+ITERATOR_TAIL = re.compile(
+    r"\.(?:each|each_with_index|each_with_object|each_slice|each_cons"
+    r"|map|collect|flat_map|select|filter|reject|find_all"
+    r"|sort_by|group_by|partition|min_by|max_by)\b"
+)
+
+# 只认整数字面量。`return []` / `return {}` / `return nil` 不算 —— 那些分支本来
+# 就是集合或空值，和「数字 vs 集合」不是同一种混乱。
+INTEGER_RETURN = re.compile(r"^\s*return\s+\d+\b")
+
+ENDLESS_DEF = re.compile(r"^\s*def\s+[^\s(]+\s*(?:\([^)]*\))?\s*=")
+
+
+def method_spans(text: str):
+    """产出 (方法名, def 所在行号, 方法体的行列表)。
+
+    用缩进找方法体的结尾：记住 `def` 那一行的缩进量，第一次遇到「缩进不比它深、
+    且去掉空白后正好是 `end`」的行即为结束。嵌套的 `end` 缩进更深，所以这个近似
+    在约定式 Ruby（本仓库过 rubocop）里是可靠的。
+
+    刻意不解析任意 Ruby。需要的只是一个规矩的仓库里「方法体最后一行是什么」这个
+    事实，而那正是 Ruby 决定返回值的地方。
+
+    无休止方法（`def foo = bar`）没有 `end`，单独处理 —— 否则扫描会一路吞掉文件
+    剩下的部分，把别的方法的末行当成它的。
+    """
+    lines = text.split("\n")
+    index = 0
+
+    while index < len(lines):
+        match = re.match(r"^(\s*)def\s+([^\s(;]+)", lines[index])
+        if not match:
+            index += 1
+            continue
+
+        indent, name = match.group(1), match.group(2)
+
+        if ENDLESS_DEF.match(lines[index]):
+            yield name, index + 1, [lines[index]]
+            index += 1
+            continue
+
+        body: list[str] = []
+        cursor = index + 1
+        while cursor < len(lines):
+            line = lines[cursor]
+            if line.strip() == "end" and len(line) - len(line.lstrip()) <= len(indent):
+                break
+            body.append(line)
+            cursor += 1
+
+        yield name, index + 1, body
+        index = cursor + 1
+
+
+def check_return_types_are_stable() -> None:
+    """一个方法不能从一条分支返回数字、从另一条分支返回集合。
+
+    真实案例（本插件）：`AutoCloser#call` 前两条分支写 `return 0`，最后一行是
+    `.each { |ticket| close(ticket, now) }` —— 于是这个方法在功能关闭时返回
+    Integer、开启时返回 Array。调用方 `Jobs::TicketingSystemAutoClose` 写的是
+    `closed.positive?`，于是这个任务**每天**都以
+
+        NoMethodError: undefined method 'positive?' for an instance of Array
+
+    失败，自动关闭从来没有真正执行过一次。
+
+    它从外面看是「健康」的，这才是值得设一道闸门的原因：一个从不运行的任务，和
+    一个运行了但没找到该关闭的工单的任务，是同一种安静。日志里那行 `Job exception`
+    是唯一的证据，而它出现在一个没人会去翻的定时任务里。
+
+    判据只看两件事：方法体里有没有 `return <数字>`，以及最后一个表达式是不是
+    迭代器。两者同时成立才报 —— 所以 `return [] if x` 这种集合分支不会被误伤。
+    """
+    for path in sources("app/**/*.rb") + sources("lib/**/*.rb"):
+        text = read(path)
+
+        for name, line_no, body in method_spans(text):
+            if not any(INTEGER_RETURN.match(line) for line in body):
+                continue
+
+            last = None
+            for line in reversed(body):
+                stripped = line.strip()
+                if stripped and not stripped.startswith("#"):
+                    last = stripped
+                    break
+
+            if last is None or not ITERATOR_TAIL.search(last):
+                continue
+
+            error(
+                rel(path),
+                f"第 {line_no} 行的 `{name}` 返回类型不稳定：既 `return <数字>`，"
+                f"又以迭代器收尾（`{last[:70]}`）—— 迭代器返回的是被遍历的集合，"
+                f"不是遍历的结果。调用方一旦写 `结果.positive?` 就会炸，"
+                f"而且只在某一条分支上炸",
+            )
+
+
+# ---------------------------------------------------------------------------
 # 主流程
 # ---------------------------------------------------------------------------
 
@@ -1038,6 +1144,7 @@ def main() -> int:
         ("已提交的迁移未被修改", check_migrations_are_append_only),
         ("图标名能真的渲染出来", check_icon_names),
         ("控制器参数没被当成 Hash 用", check_params_are_normalised),
+        ("方法返回类型稳定（数字 vs 集合）", check_return_types_are_stable),
     ]
 
     passed: list[str] = []

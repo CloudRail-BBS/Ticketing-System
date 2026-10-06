@@ -213,6 +213,16 @@ MUTATIONS: list[Mutation] = [
         old="      @params = normalize_params(params)",
         new="      @params = params.with_indifferent_access",
     ),
+    Mutation(
+        what="方法返回类型不稳定（一条分支返回数字，另一条返回集合）",
+        script=VALIDATE,
+        expect="返回类型不稳定",
+        target="lib/ticketing_system/auto_closer.rb",
+        # 换回出问题之前那一行：`count` 给出 Integer，而 `each` 返回接收者本身。
+        # 必须注入在代码行上 —— 上面那段解释这个 bug 的注释里也提到了 `each`。
+        old="      candidates.count { |ticket| close(ticket, now) }",
+        new="      candidates.each { |ticket| close(ticket, now) }",
+    ),
 ]
 
 

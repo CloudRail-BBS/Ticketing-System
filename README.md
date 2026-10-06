@@ -485,9 +485,9 @@ sh scripts/selftest.sh
 | 阶段 | 内容 |
 | --- | --- |
 | 1/4 | `scripts/check-templates.py` — `.gjs` 模板的作用域，以及剥掉模板后的 JS 语法 |
-| 2/4 | `scripts/validate.py` — 15 项跨文件静态一致性检查 |
+| 2/4 | `scripts/validate.py` — 16 项跨文件静态一致性检查 |
 | 3/4 | `scripts/check-ruby.rb` — 44 个 `.rb` 的语法、`.erb` 的可编译性，以及 Ruby 解析器的警告 |
-| 4/4 | `scripts/selftest.py` — 变异自测：向代码注入 16 处缺陷，确认前三个校验器确实报错，然后恢复文件 |
+| 4/4 | `scripts/selftest.py` — 变异自测：向代码注入 17 处缺陷，确认前三个校验器确实报错，然后恢复文件 |
 
 也可以用 `npm run lint`（等价）、`npm run validate`、`npm run templates`、`npm run ruby`、`npm run mutation` 单独跑某一项。
 
@@ -510,11 +510,12 @@ sh scripts/selftest.sh
 | 哈希里同一个键写了两遍 | 前者被静默覆盖（真实案例：`status: 400, status: "bogus"` 让 HTTP 状态码变成了 `"bogus"`，500 而不是 400） |
 | 已发布的迁移被原地改写 | 改动只对之后安装的库生效，已有库拿不到新列，代码一读就是 Postgres `undefined column`——报错指向查询，不指向「列没建」（真实案例，见 `..._000002` 顶部的注释） |
 | 把控制器的 `params` 当成 Hash 用 | 不是 404、不是 400，而是**那个端点** 500：`ActionController::Parameters` 没有 `with_indifferent_access` 这类 Hash 方法，报错发生在参数规整阶段，比任何查询都早（真实案例：`/tickets/api/tickets` 500 而 `/tickets/api/meta` 200） |
+| 方法在不同分支上返回不同类型 | **定时任务每天都失败，而它看起来是健康的**：一个从不运行的任务，和一个运行了但没找到该关闭的工单的任务，是同一种安静。真实案例：`AutoCloser#call` 前两条分支写 `return 0`、最后一行是 `.each { … }`，于是功能关闭时返回 Integer、开启时返回 Array，调用方的 `closed.positive?` 抛 `undefined method 'positive?' for an instance of Array` —— 自动关闭一次都没跑成，唯一的证据是 `/logs` 里一行没人会翻的 `Job exception` |
 | 图标名不在核心精灵里 | `d-icon` 不报错、不警告，只是画出一块空白——侧边栏那行看着像「忘了配图标」，通知条目空一块（真实案例：`ticket`，见 `scripts/discourse-icons.txt`） |
 
 没有一条会写日志，没有一条会让测试变红。所以这些检查必须在这里、在提交之前跑一遍。
 
-`scripts/validate.py` 的 15 项检查：YAML 可解析与客户端 `js:` 包装、两个语种的键集对齐（含叶子类型）、前端 `i18n()` 调用、服务端 `I18n.t` / `Errors::*` / `errors.add`、`Errors::*` 类名、`Errors::*` 插值参数与文案占位符、`site_settings` 与文案双向、`site_settings` 与 Ruby 用法双向、枚举与文案（`STATUSES` / `PRIORITIES` 查两个语种的**客户端**文案，`EVENT_KINDS` 只查**服务端**文案——它的标签由 `EventSerializer` 在服务端查，去客户端文案里找只会报假错）、`plugin.rb` 元数据、前端 API 路径与 `config/routes.rb`、前端相对导入可达性、已提交的迁移未被修改（比工作区与 `HEAD` 的差异，所以改动一旦单独提交就自动变绿）、图标名能真的渲染出来（`scripts/discourse-icons.txt` 是 `SvgSprite::SVG_ICONS` 的快照，再加上本插件 `register_svg_icon` 贡献的名字）、控制器参数没被当成 Hash 用（`params.with_indifferent_access` 这类 Hash 专属方法在 `ActionController::Parameters` 上并不存在，命中的端点会 500——清单刻意只收确定不存在的名字，会误报的闸门比没有闸门更糟）。
+`scripts/validate.py` 的 16 项检查：YAML 可解析与客户端 `js:` 包装、两个语种的键集对齐（含叶子类型）、前端 `i18n()` 调用、服务端 `I18n.t` / `Errors::*` / `errors.add`、`Errors::*` 类名、`Errors::*` 插值参数与文案占位符、`site_settings` 与文案双向、`site_settings` 与 Ruby 用法双向、枚举与文案（`STATUSES` / `PRIORITIES` 查两个语种的**客户端**文案，`EVENT_KINDS` 只查**服务端**文案——它的标签由 `EventSerializer` 在服务端查，去客户端文案里找只会报假错）、`plugin.rb` 元数据、前端 API 路径与 `config/routes.rb`、前端相对导入可达性、已提交的迁移未被修改（比工作区与 `HEAD` 的差异，所以改动一旦单独提交就自动变绿）、图标名能真的渲染出来（`scripts/discourse-icons.txt` 是 `SvgSprite::SVG_ICONS` 的快照，再加上本插件 `register_svg_icon` 贡献的名字）、控制器参数没被当成 Hash 用（`params.with_indifferent_access` 这类 Hash 专属方法在 `ActionController::Parameters` 上并不存在，命中的端点会 500——清单刻意只收确定不存在的名字，会误报的闸门比没有闸门更糟）、方法返回类型稳定（一个方法既 `return <数字>` 又以 `.each` / `.map` 之类迭代器收尾时，它在不同分支上返回的是不同类型——`Array#each` 返回的是被遍历的集合本身，于是调用方写的 `结果.positive?` 会在**其中一条分支上**炸，而且这类失败发生在定时任务里，没人会去翻）。
 
 ### 几条容易踩的约定
 
@@ -553,6 +554,8 @@ sudo -u discourse bundle exec rake db:migrate:status | grep ticketing_system
 **附件传上去了，但点开是 404，而 JSON 里字段看着都对。** 说明返回的是原始存储路径，而不是 `UploadSerializer#url` 重写后的 `/secure-uploads/…`。检查是不是有人手搓了上传的哈希（`lib/ticketing_system/attachments.rb` 说明了为什么不能这么做）。这个症状只在开了 `secure_uploads` 的论坛上出现。
 
 **通知里少了一条超时提醒。** 定时任务只在 `ticketing_system_overdue_reminders` 与 `ticketing_system_notify_staff` 都打开时发通知；另外 `sla_notified_at` 一旦写上就不会再提醒第二次（这是幂等设计，不是 bug）。要重测，先把那张工单的 `sla_notified_at` 置空。
+
+**`/logs` 里出现 `Job exception: undefined method 'positive?' for an instance of Array`。** 定时任务拿到的东西类型不对。真实案例：`AutoCloser#call` 的前两条分支写 `return 0`，最后一行原本是 `.each { |ticket| close(ticket, now) }` —— 而 `Array#each` 返回的是**被遍历的集合本身**，不是遍历的结果。于是这个方法在功能关闭时返回 Integer、开启时返回 Array，任务里的 `closed.positive?` 只在开启时炸。因为设置是开着的，早退分支从不触发，所以这个任务**每天**都失败，自动关闭一次都没跑成。改法是让每一条分支返回同一种类型（现在是 `candidates.count { |ticket| close(ticket, now) }`，并且 `close` 明确返回 `true`/`false`，而不是让 `Notifier` 的返回值决定计数）。排查时看那个 lib 方法**每一条** `return` 分别是什么类型，而不是只看最后一行。这类失败是安静的：一个从不运行的任务，和一个运行了但没找到该关闭的工单的任务，在日志里长得一模一样。闸门里有一条检查盯这个。
 
 **「已读」区块一直是空的。** 它只对员工渲染，而且服务端会**排除发起人本人**——这个列表要回答的是「团队里有没有人看到过」。员工自己打开工单会写入自己的读标记，所以另一位员工应该马上能看到。
 

@@ -36,6 +36,26 @@ module ::TicketingSystem
       new.call
     end
 
+    # Answers the number of tickets closed. **Always an Integer** — every exit
+    # path, including the two early returns above.
+    #
+    # It used to end in `.each { |ticket| close(ticket, now) }`, and
+    # `Array#each` returns its receiver. So this method answered an Array when
+    # the feature was on and `0` when it was off, and the caller —
+    # `Jobs::TicketingSystemAutoClose` — did `closed.positive?` and died with
+    #
+    #     NoMethodError: undefined method 'positive?' for an instance of Array
+    #
+    # on every run. The setting was on, so the early returns never fired: the
+    # job failed every single day and auto-close closed nothing. It looked
+    # healthy from the outside, because a job that never runs and a job that
+    # runs and finds nothing overdue are the same silence.
+    #
+    # The fix is not "use `count` instead of `each`". It is that a method with
+    # more than one exit path has to answer one type from all of them. `close`
+    # below returns true/false for the same reason: counting the result of
+    # `Notifier.auto_closed` would have made the total a guess about what a
+    # notifier happens to return.
     def call
       return 0 unless Permissions.enabled?
 
@@ -50,17 +70,21 @@ module ::TicketingSystem
       # A resolved ticket with a nil `resolved_at` is skipped by the comparison
       # (NULL <= x is NULL, never true). That is the safe direction: a ticket
       # whose resolution date cannot be established is not silently closed.
-      Ticket
-        .where(status: Constants::STATUSES[:resolved])
-        .where(resolved_at: ..cutoff)
-        .order(:resolved_at, :id)
-        .limit(BATCH_SIZE)
-        .to_a
-        .each { |ticket| close(ticket, now) }
+      candidates =
+        Ticket
+          .where(status: Constants::STATUSES[:resolved])
+          .where(resolved_at: ..cutoff)
+          .order(:resolved_at, :id)
+          .limit(BATCH_SIZE)
+          .to_a
+
+      candidates.count { |ticket| close(ticket, now) }
     end
 
     private
 
+    # `true` when the ticket ended up closed, `false` when it did not. The
+    # caller counts these, so this return value is part of the contract.
     def close(ticket, now)
       previous = ticket.status
 
@@ -77,13 +101,15 @@ module ::TicketingSystem
       )
 
       Notifier.auto_closed(ticket)
+
+      true
     rescue StandardError => e
       # One bad row must not stop the sweep. The next run will try it again, and
       # in the meantime the failure is in the log rather than swallowed.
       Rails.logger.warn(
         "[ticketing-system] could not auto-close ticket #{ticket.try(:id)}: #{e.class} #{e.message}",
       )
-      nil
+      false
     end
   end
 end
