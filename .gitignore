@@ -1,0 +1,22 @@
+# 编辑器与系统
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# 校验器的产物
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# package.json 只用来挂 npm scripts，插件本身没有依赖、没有构建步骤。
+# 这个仓库里不该出现 node_modules。
+node_modules/
+npm-debug.log*
+
+# 本地覆盖
+*.local
+.env
+.env.*

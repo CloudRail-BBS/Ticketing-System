@@ -1,0 +1,266 @@
+# Client-side strings.
+#
+# The `js:` wrapper is MANDATORY. Client files are merged into the JS bundle and
+# read by `i18n("ticketing_system.…")`; without the wrapper every lookup fails and
+# the UI renders `[en.ticketing_system.…]` instead of text. The bracket form also
+# tells you which locale was active, which is the quickest way to confirm this.
+#
+# Filename must be `client<something>.<locale>.yml` — core collects the bundle with
+# `Dir["plugins/*/config/locales/client*.#{locale}.yml"]`. A file named
+# `frontend.en.yml` would load server-side only and every client lookup would miss.
+en:
+  js:
+    ticketing_system:
+      title: "Tickets"
+      nav_label: "Tickets"
+      heading: "Support tickets"
+      description: "Open a ticket and the support team will get back to you."
+      loading: "Loading tickets…"
+      count:
+        one: "%{count} ticket"
+        other: "%{count} tickets"
+
+      # Duplicated from server.en.yml on purpose. The two files are read by two
+      # different I18n instances: server-side `I18n.t("ticketing_system.status.open")`
+      # and client-side `i18n("ticketing_system.status.open")`. A key that exists
+      # only in the server file renders as a raw key in the browser.
+      #
+      # The client needs these for the notification renderer, which is handed a
+      # bare status name (`"resolved"`) from the notification's data payload and
+      # has no other way to turn it into words.
+      status:
+        open: "Open"
+        in_progress: "In progress"
+        pending: "Waiting on requester"
+        resolved: "Resolved"
+        closed: "Closed"
+
+      priority:
+        low: "Low"
+        normal: "Normal"
+        high: "High"
+        urgent: "Urgent"
+
+      empty:
+        mine: "You have no tickets yet."
+        all: "There are no tickets."
+        filtered: "No tickets match these filters."
+        hint: "Try clearing a filter, or open a new ticket."
+
+      filters:
+        scope: "View"
+        status: "Status"
+        priority: "Priority"
+        department: "Department"
+        sort: "Sort"
+        search: "Search"
+        search_placeholder: "Search title, number, user or message"
+        all: "All"
+        any: "Any"
+        clear: "Clear"
+        unread_only: "Unread only"
+        active_filters: "Filtered"
+
+      scopes:
+        mine: "My tickets"
+        all: "All tickets"
+        unassigned: "Unassigned"
+        assigned_to_me: "Assigned to me"
+        active: "Active"
+
+      sorts:
+        recent: "Recently active"
+        oldest: "Least recent activity"
+        priority: "Priority"
+        created: "Newest first"
+
+      columns:
+        ticket: "Ticket"
+        requester: "Requester"
+        assignee: "Assignee"
+        department: "Department"
+        status: "Status"
+        priority: "Priority"
+        activity: "Last activity"
+        messages: "Messages"
+
+      list:
+        prev: "Previous"
+        next: "Next"
+        page_info: "Page %{page} of %{pages}"
+
+      ticket:
+        number: "Ticket %{number}"
+        unassigned: "Unassigned"
+        no_department: "No department"
+        unread: "Unread"
+        staff_badge: "Staff"
+        internal_badge: "Internal"
+        you: "you"
+
+      new:
+        heading: "Open a ticket"
+        description: "Describe the problem and the support team will pick it up."
+        title_label: "Title"
+        title_placeholder: "A short summary of the problem"
+        body_label: "Details"
+        body_placeholder: "What happened, what you expected, and anything you have already tried."
+        department_label: "Department"
+        department_any: "No specific department"
+        priority_label: "Priority"
+        submit: "Open ticket"
+        submitting: "Opening…"
+        created: "Your ticket has been created."
+        counter: "%{count} / %{max} characters"
+
+      detail:
+        back: "Back to tickets"
+        conversation: "Conversation"
+        timeline: "Activity"
+        no_messages: "No messages yet."
+        no_events: "No activity recorded yet."
+        reply_placeholder: "Write a reply…"
+        internal_placeholder: "Write a note that only staff can see…"
+        closed_notice: "This ticket is closed. Staff can reply to reopen it."
+        first_response: "First response"
+        resolution: "Resolution"
+        due_at: "due %{time}"
+        sla:
+          met: "On time"
+          on_track: "On track"
+          due_soon: "Due soon"
+          breached: "Overdue"
+
+      actions:
+        reply: "Reply"
+        send: "Send"
+        sending: "Sending…"
+        mode_public: "Public reply"
+        mode_internal: "Internal note"
+        mode_internal_hint: "Internal notes are visible to staff only."
+        close: "Close ticket"
+        reopen: "Reopen"
+        resolve: "Mark resolved"
+        start: "Start working"
+        wait_for_requester: "Wait for requester"
+        assign_to_me: "Assign to me"
+        unassign: "Unassign"
+        refresh: "Refresh"
+        retry: "Retry"
+
+      fields:
+        status: "Status"
+        priority: "Priority"
+        department: "Department"
+        assignee: "Assignee"
+        requester: "Opened by"
+        created: "Opened"
+        last_activity: "Last activity"
+
+      errors:
+        generic: "Something went wrong. Please try again."
+        load_failed: "Could not load tickets."
+        detail_failed: "Could not load this ticket."
+        create_failed: "Could not open the ticket."
+        reply_failed: "Could not send your message."
+        action_failed: "Could not apply that change."
+        disabled: "The ticket system is currently disabled."
+        sign_in: "Please sign in to use tickets."
+        body_required: "Please write a message first."
+        title_required: "Please give the ticket a title."
+        title_too_short: "The title needs at least %{min} characters."
+
+      admin:
+        title: "Ticketing System"
+        description: "Ticket queues, departments and service-level targets."
+        tab_overview: "Overview"
+        tab_departments: "Departments"
+        disabled_hint: "The ticket system is currently disabled. Turn on \"ticketing_system_enabled\" in the settings below to start accepting tickets."
+        settings_hint: "These settings live in the settings area below this page."
+
+        overview:
+          loading: "Loading statistics…"
+          failed: "Could not load statistics."
+          totals: "Queue"
+          all_tickets: "All tickets"
+          active: "Active"
+          unassigned: "Unassigned"
+          in_progress: "In progress"
+          overdue: "Overdue first response"
+          by_status: "By status"
+          by_priority: "By priority"
+          by_department: "By department"
+          first_response: "First response"
+          average: "Average"
+          median: "Median"
+          on_time: "On time"
+          breached: "Overdue"
+          sample_size: "%{count} answered tickets"
+          no_sample: "No ticket has been answered yet."
+          activity: "Activity"
+          created_today: "Opened today"
+          created_week: "Opened this week"
+          created_month: "Opened this month"
+          resolved_week: "Resolved this week"
+          resolved_month: "Resolved this month"
+          closed_month: "Closed this month"
+          load: "Staff load"
+          no_load: "No ticket is currently assigned."
+          assigned_count: "%{count} assigned"
+          open_tickets: "Open tickets"
+          duration_seconds: "%{value}s"
+          duration_minutes: "%{value}m"
+          duration_hours: "%{value}h"
+          duration_days: "%{value}d"
+
+        departments:
+          heading: "Departments"
+          description: "Departments route tickets to a group and set their own service-level targets."
+          new: "New department"
+          edit: "Edit"
+          delete: "Delete"
+          cancel: "Cancel"
+          save: "Save"
+          saving: "Saving…"
+          name: "Name"
+          slug: "Slug"
+          slug_hint: "Used in filters and URLs. Generated from the name when left empty."
+          description_field: "Description"
+          position: "Order"
+          enabled: "Enabled"
+          disabled: "Disabled"
+          staff_group: "Handled by group"
+          staff_group_hint: "Leave empty so any staff member can take tickets in this department."
+          staff_group_any: "Any staff member"
+          first_response_hours: "First response target (hours)"
+          resolution_hours: "Resolution target (hours)"
+          default_priority: "Default priority"
+          empty: "No departments yet. Tickets still work without one."
+          failed: "Could not load departments."
+          save_failed: "Could not save the department."
+          name_required: "Please give the department a name."
+          delete_confirm: "Delete the \"%{name}\" department?"
+          delete_in_use: "This department still has tickets. Disable it instead."
+          created: "Department created."
+          updated: "Department saved."
+          deleted: "Department deleted."
+
+      # Notification item text.
+      #
+      # These are the PHRASE only — no `%{username}`. The notification item
+      # renders the acting user's name in a separate `label` span before the
+      # description, so a `%{username}` here would print the name twice
+      # ("alice alice opened a ticket"). See
+      # assets/javascripts/discourse/lib/notification-type.js.
+      #
+      # `%{status}` is the only placeholder any of them needs, and only
+      # `status_changed` has it. The renderer always passes a `status` key
+      # (empty string when the event carries none) because Discourse's i18n
+      # treats `undefined` as a missing interpolation and renders the literal
+      # "[missing %{status} value]".
+      notifications:
+        new_ticket: "opened a ticket"
+        requester_reply: "replied to a ticket"
+        staff_reply: "replied to your ticket"
+        assigned: "assigned a ticket to you"
+        status_changed: "marked the ticket %{status}"

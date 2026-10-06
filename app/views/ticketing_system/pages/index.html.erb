@@ -1,0 +1,71 @@
+<% content_for :title do %><%= @page_title %> - <%= SiteSetting.title %><% end %>
+
+<%
+  # The `data-` attribute is the cheapest possible deployment marker: one curl
+  # proves which revision of the server code is actually live, which is the only
+  # way to tell "my fix is wrong" apart from "my fix never deployed".
+  #
+  #   curl -s https://forum.example/tickets | grep -o 'data-ticketing-system-version="[^"]*"'
+  #
+  # The constant is asserted against the `# version:` metadata header in
+  # scripts/validate.py, so the marker cannot silently start lying.
+%>
+<div class="ticketing-system-noscript" data-ticketing-system-version="<%= @plugin_version %>">
+  <h1><%= I18n.t("ticketing_system.page.heading") %></h1>
+
+  <% if @ticket.present? %>
+    <h2>
+      <%= @ticket.display_number %> —
+      <%= @ticket.title %>
+    </h2>
+
+    <p>
+      <%= I18n.t("ticketing_system.status.#{@ticket.status}") %> ·
+      <%= I18n.t("ticketing_system.priority.#{@ticket.priority}") %>
+      <% if @ticket.department.present? %>
+        · <%= @ticket.department.name %>
+      <% end %>
+    </p>
+
+    <ol class="ticketing-system-noscript__messages">
+      <%
+        # Only public messages, and only as plain text. `excerpt` strips the tags
+        # off the cooked HTML, so this view needs no `raw` and carries no
+        # sanitisation question — the noscript block is for crawlers and for
+        # people without JavaScript, and neither needs the rendered formatting.
+      %>
+      <% @ticket.messages.public_messages.each do |message| %>
+        <li>
+          <strong><%= message.user&.username %></strong>
+          <span><%= message.created_at.strftime("%Y-%m-%d %H:%M") %></span>
+          <p><%= message.excerpt(400) %></p>
+        </li>
+      <% end %>
+    </ol>
+  <% else %>
+    <p>
+      <%= I18n.t("ticketing_system.page.description") %>
+    </p>
+
+    <% if @tickets.blank? %>
+      <p><%= I18n.t("ticketing_system.page.empty") %></p>
+      <p><%= I18n.t("ticketing_system.page.empty_hint") %></p>
+    <% else %>
+      <p><%= I18n.t("ticketing_system.page.count", count: @ticket_count) %></p>
+
+      <ul class="ticketing-system-noscript__list">
+        <% @tickets.each do |ticket| %>
+          <li>
+            <a href="/tickets/<%= ticket.id %>"><%= ticket.display_number %> — <%= ticket.title %></a>
+            <span>
+              <%= I18n.t("ticketing_system.status.#{ticket.status}") %> ·
+              <%= I18n.t("ticketing_system.priority.#{ticket.priority}") %>
+            </span>
+          </li>
+        <% end %>
+      </ul>
+    <% end %>
+  <% end %>
+
+  <p><a href="/tickets/new"><%= I18n.t("ticketing_system.page.new_ticket") %></a></p>
+</div>

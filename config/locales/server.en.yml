@@ -1,0 +1,126 @@
+# Server-side strings.
+#
+# NO `js:` wrapper here — that layer belongs to client.<locale>.yml, which is
+# merged into the JS bundle. Server files have `site_settings:` and the plugin
+# namespace straight under the locale.
+#
+# Every file under a plugin's config/locales is added to the server I18n load
+# path (core: `config.i18n.load_path += Dir["plugins/*/config/locales/*.yml"]`),
+# while only `client*.<locale>.yml` is merged into the client bundle. The `js:`
+# wrapper is what keeps the two from colliding: client keys live under `js.` and
+# are therefore invisible to a server-side `I18n.t("ticketing_system.…")`.
+en:
+  ticketing_system:
+    status:
+      open: "Open"
+      in_progress: "In progress"
+      pending: "Waiting on requester"
+      resolved: "Resolved"
+      closed: "Closed"
+
+    priority:
+      low: "Low"
+      normal: "Normal"
+      high: "High"
+      urgent: "Urgent"
+
+    # Labels for the audit trail. `EventSerializer#kind_label` looks these up with
+    # `default: object.kind`, so a kind added without a translation degrades to
+    # its machine name rather than rendering a raw i18n key.
+    event:
+      created: "Ticket created"
+      replied: "Replied"
+      internal_note: "Internal note added"
+      status_changed: "Status changed"
+      priority_changed: "Priority changed"
+      assignee_changed: "Assignee changed"
+      department_changed: "Department changed"
+      reopened: "Reopened"
+      closed: "Closed"
+
+    page:
+      title: "Tickets"
+      heading: "Support tickets"
+      description: "Open a ticket and the support team will get back to you. You can follow every ticket you have opened here."
+      empty: "You have no tickets yet."
+      empty_hint: "Use the button below to open one."
+      count:
+        one: "%{count} ticket"
+        other: "%{count} tickets"
+      new_ticket: "New ticket"
+
+    # Keys map 1:1 to Errors::* in lib/ticketing_system/errors.rb. The key is
+    # what the class passes to I18n, so a missing entry renders as a raw key —
+    # scripts/validate.py asserts that every `Errors::X.new(:key)` has one.
+    errors:
+      disabled: "The ticket system is currently disabled."
+      must_sign_in: "You must be signed in to open a ticket."
+      forbidden: "You are not allowed to do that."
+      not_found: "Not found."
+      ticket_not_found: "That ticket does not exist."
+      bad_request: "The request was malformed."
+      staff_only: "Only staff can do that."
+      scope_requires_staff: "Only staff can browse other users' tickets."
+      invalid_scope: "Unknown filter \"%{scope}\"."
+      invalid_sort: "Unknown sort order \"%{sort}\"."
+      invalid_status: "Unknown status \"%{status}\"."
+      invalid_priority: "Unknown priority \"%{priority}\"."
+      invalid_operation: "Unknown operation \"%{operation}\"."
+      unknown_department: "There is no department called \"%{department}\"."
+      department_disabled: "The \"%{department}\" department is not accepting tickets."
+      department_not_found: "That department does not exist."
+      department_in_use: "The \"%{name}\" department still has tickets. Disable it instead of deleting it."
+      unknown_assignee: "There is no staff member called \"%{username}\"."
+      assign_not_allowed: "Only staff can assign tickets."
+      status_change_not_allowed: "You cannot change this ticket's status."
+      status_change_not_allowed_to: "You cannot move this ticket to \"%{status}\"."
+      priority_change_not_allowed: "You cannot change this ticket's priority."
+      department_change_not_allowed: "You cannot change this ticket's department."
+      internal_notes_not_allowed: "Internal notes are disabled or you are not staff."
+      ticket_closed: "This ticket is closed. Staff can reply to reopen it."
+      too_many_open_tickets: "You already have %{count} open tickets. Please wait for one to be resolved."
+      create_rate_limited: "You can open at most %{count} tickets per hour. Please try again later."
+      reply_rate_limited: "You can send at most %{count} replies per hour. Please try again later."
+
+  # Model validation messages that Rails has no default for.
+  #
+  # The lookup chain for `errors.add(:slug, :invalid_slug)` is
+  # activerecord.errors.models.<model>.attributes.<attr>.<key>, where <model> is
+  # `model_name.i18n_key` — for TicketingSystem::Department that is
+  # `ticketing_system/department`, i.e. the module namespace joined with a slash.
+  # Getting that wrong does not raise; it renders the raw key in the error list.
+  activerecord:
+    errors:
+      models:
+        ticketing_system/department:
+          attributes:
+            slug:
+              invalid_slug: "may only contain letters, digits, dashes and underscores"
+            staff_group_name:
+              unknown_group: "there is no group named \"%{group}\""
+
+  # One label per entry in config/settings.yml. A setting without a label shows
+  # its raw key in /admin/site_settings, and scripts/validate.py asserts that the
+  # two files stay in sync in both directions.
+  site_settings:
+    ticketing_system_enabled: "Enable the ticket system."
+    ticketing_system_staff_groups: "Groups whose members can see and answer every ticket. Administrators always count as staff."
+    ticketing_system_show_nav_link: "Show a ticket link in the navigation."
+    ticketing_system_unread_badge: "Show an unread ticket count in the navigation."
+    ticketing_system_default_priority: "Priority given to a new ticket when its department does not specify one."
+    ticketing_system_allow_requester_priority: "Let requesters choose a priority when opening a ticket."
+    ticketing_system_allow_requester_close: "Let requesters close their own tickets."
+    ticketing_system_allow_requester_reopen: "Let requesters reopen their own resolved or closed tickets."
+    ticketing_system_allow_internal_notes: "Let staff write internal notes that the requester cannot see."
+    ticketing_system_title_min_length: "Minimum number of characters in a ticket title."
+    ticketing_system_title_max_length: "Maximum number of characters in a ticket title."
+    ticketing_system_body_max_length: "Maximum number of characters in a ticket message."
+    ticketing_system_max_open_per_user: "How many open tickets one user may have at a time. Set to 0 to disable the cap."
+    ticketing_system_create_per_hour: "How many tickets one user may open per hour. Set to 0 to disable the limit."
+    ticketing_system_reply_per_hour: "How many replies one user may post per hour. Set to 0 to disable the limit."
+    ticketing_system_first_response_hours: "Hours allowed before a first staff reply is considered overdue. Used when a ticket's department does not set its own."
+    ticketing_system_resolution_hours: "Hours allowed before a ticket is considered overdue for resolution. Used when a ticket's department does not set its own."
+    ticketing_system_list_page_size: "How many tickets to show per page."
+    ticketing_system_notify_staff: "Notify staff when a ticket is opened or the requester replies."
+    ticketing_system_notify_requester: "Notify the requester when staff replies or resolves the ticket."
+    ticketing_system_notify_assignee: "Notify a staff member when a ticket is assigned to them."

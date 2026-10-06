@@ -1,0 +1,101 @@
+# 服务端文案。键集必须与 server.en.yml 完全一致 —— scripts/validate.py 会逐个比对，
+# 缺一个键在英文界面下看不出来，只有该语言的用户会撞上。
+zh_CN:
+  ticketing_system:
+    status:
+      open: "待处理"
+      in_progress: "处理中"
+      pending: "等待用户"
+      resolved: "已解决"
+      closed: "已关闭"
+
+    priority:
+      low: "低"
+      normal: "普通"
+      high: "高"
+      urgent: "紧急"
+
+    event:
+      created: "创建工单"
+      replied: "回复"
+      internal_note: "添加内部备注"
+      status_changed: "状态变更"
+      priority_changed: "优先级变更"
+      assignee_changed: "负责人变更"
+      department_changed: "部门变更"
+      reopened: "重新打开"
+      closed: "关闭"
+
+    page:
+      title: "工单"
+      heading: "支持工单"
+      description: "提交工单后支持团队会尽快处理。你提交过的所有工单都可以在这里查看。"
+      empty: "你还没有工单。"
+      empty_hint: "点击下方按钮创建第一个工单。"
+      count:
+        one: "%{count} 个工单"
+        other: "%{count} 个工单"
+      new_ticket: "新建工单"
+
+    errors:
+      disabled: "工单系统当前已关闭。"
+      must_sign_in: "请先登录再提交工单。"
+      forbidden: "你没有权限执行该操作。"
+      not_found: "未找到。"
+      ticket_not_found: "该工单不存在。"
+      bad_request: "请求格式有误。"
+      staff_only: "只有员工可以执行该操作。"
+      scope_requires_staff: "只有员工可以查看其他用户的工单。"
+      invalid_scope: "未知的筛选条件「%{scope}」。"
+      invalid_sort: "未知的排序方式「%{sort}」。"
+      invalid_status: "未知的状态「%{status}」。"
+      invalid_priority: "未知的优先级「%{priority}」。"
+      invalid_operation: "未知的操作「%{operation}」。"
+      unknown_department: "不存在名为「%{department}」的部门。"
+      department_disabled: "「%{department}」部门当前不接收工单。"
+      department_not_found: "该部门不存在。"
+      department_in_use: "「%{name}」部门下仍有工单，请改为停用而不是删除。"
+      unknown_assignee: "不存在名为「%{username}」的员工。"
+      assign_not_allowed: "只有员工可以指派工单。"
+      status_change_not_allowed: "你不能修改该工单的状态。"
+      status_change_not_allowed_to: "不能把该工单改为「%{status}」。"
+      priority_change_not_allowed: "你不能修改该工单的优先级。"
+      department_change_not_allowed: "你不能修改该工单的部门。"
+      internal_notes_not_allowed: "内部备注已关闭，或你不是员工。"
+      ticket_closed: "该工单已关闭。员工回复即可重新打开。"
+      too_many_open_tickets: "你已有 %{count} 个未完成工单，请等待其中部分工单处理完成。"
+      create_rate_limited: "每小时最多可创建 %{count} 个工单，请稍后再试。"
+      reply_rate_limited: "每小时最多可发送 %{count} 条回复，请稍后再试。"
+
+  activerecord:
+    errors:
+      models:
+        ticketing_system/department:
+          attributes:
+            slug:
+              invalid_slug: "只能包含字母、数字、短横线和下划线"
+            staff_group_name:
+              unknown_group: "不存在名为「%{group}」的用户组"
+
+  site_settings:
+    ticketing_system_enabled: "启用工单系统。"
+    ticketing_system_staff_groups: "哪些用户组的成员可以查看并处理全部工单。管理员始终视为员工。"
+    ticketing_system_show_nav_link: "在导航中显示工单入口。"
+    ticketing_system_unread_badge: "在导航中显示未读工单数。"
+    ticketing_system_default_priority: "部门未指定时，新工单的默认优先级。"
+    ticketing_system_allow_requester_priority: "允许提交者自选优先级。"
+    ticketing_system_allow_requester_close: "允许提交者关闭自己的工单。"
+    ticketing_system_allow_requester_reopen: "允许提交者重新打开自己已解决或已关闭的工单。"
+    ticketing_system_allow_internal_notes: "允许员工撰写提交者不可见的内部备注。"
+    ticketing_system_title_min_length: "工单标题最少字符数。"
+    ticketing_system_title_max_length: "工单标题最多字符数。"
+    ticketing_system_body_max_length: "单条工单消息最多字符数。"
+    ticketing_system_max_open_per_user: "单个用户同时可拥有的未完成工单上限。设为 0 表示不限制。"
+    ticketing_system_create_per_hour: "单个用户每小时可创建的工单数上限。设为 0 表示不限制。"
+    ticketing_system_reply_per_hour: "单个用户每小时可发送的回复数上限。设为 0 表示不限制。"
+    ticketing_system_first_response_hours: "首次员工回复超过多少小时算逾期。工单所属部门未单独设置时使用该值。"
+    ticketing_system_resolution_hours: "工单超过多少小时未解决算逾期。工单所属部门未单独设置时使用该值。"
+    ticketing_system_list_page_size: "每页显示的工单数量。"
+    ticketing_system_notify_staff: "工单创建或提交者回复时通知员工。"
+    ticketing_system_notify_requester: "员工回复或解决工单时通知提交者。"
+    ticketing_system_notify_assignee: "工单被指派给某位员工时通知该员工。"

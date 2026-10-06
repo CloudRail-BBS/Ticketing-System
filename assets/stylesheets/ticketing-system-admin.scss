@@ -1,0 +1,333 @@
+// 工单系统 —— 管理侧样式（/tickets/admin）。
+//
+// 为什么单独一个文件而不是并进 ticketing-system.scss：
+//
+//   管理页的样式比用户侧多一倍（卡片、条形图、标签页、行内确认），塞进同一个文件
+//   会让「用户侧改一行」和「管理侧改一行」在 diff 里长得一样。分开之后，
+//   plugin.rb 里两条 `register_asset` 也说明了它们各自的归属。
+//
+//   注意两条 register_asset **都**没有 `:admin` 目标。`:admin` 会把样式放进
+//   管理后台的 bundle，那个 bundle 只在 /admin 路由下加载；而本插件的管理页是
+//   插件自己前端路由上的一页（/tickets/admin），`:admin` 的样式永远到不了那里 ——
+//   页面会渲染出来、没有样式、日志里什么都没有。
+//
+// 只用 CSS 自定义属性，不用任何核心 SCSS 变量（理由见 ticketing-system.scss 顶部）。
+
+// ---- 外壳 --------------------------------------------------------------
+
+.ts-admin {
+  margin-top: 0.5em;
+}
+
+// ---- 标签页 ------------------------------------------------------------
+//
+// 用原生 <button> + 下边框，而不是核心的 DNavItem：核心的导航组件在近几个版本里
+// 换过两次导入路径，而这里只需要「一条下划线跟着选中项走」。
+
+.ts-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25em;
+  margin-bottom: 1.5em;
+  border-bottom: 1px solid var(--primary-low);
+}
+
+.ts-tab {
+  padding: 0.5em 0.9em;
+  margin-bottom: -1px;
+  font-size: var(--font-0);
+  font-weight: 600;
+  color: var(--primary-medium);
+  background: transparent;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+
+  &:hover {
+    color: var(--primary);
+  }
+
+  &.is-active {
+    color: var(--tertiary);
+    border-bottom-color: var(--tertiary);
+  }
+}
+
+// ---- 总览：计数卡片 ----------------------------------------------------
+
+.ts-overview__actions {
+  align-items: center;
+  justify-content: flex-end;
+  margin-bottom: 1em;
+}
+
+.ts-overview__hint {
+  margin: 0.75em 0 0;
+  font-size: var(--font-down-1);
+}
+
+.ts-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9em, 1fr));
+  gap: 0.75em;
+}
+
+.ts-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15em;
+  padding: 0.85em 1em;
+  background: var(--secondary);
+  border: 1px solid var(--primary-low);
+  border-radius: 8px;
+
+  // 未分配：不是错误，但需要有人认领。
+  &.is-warn {
+    border-color: var(--quaternary);
+  }
+
+  // 首次响应超时：这是真的坏了。
+  &.is-alert {
+    border-color: var(--danger);
+  }
+}
+
+.ts-card__label {
+  font-size: var(--font-down-2);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--primary-medium);
+}
+
+.ts-card__value {
+  font-size: var(--font-up-3);
+  font-weight: 600;
+  line-height: 1.1;
+}
+
+.ts-card.is-warn .ts-card__value {
+  color: var(--quaternary);
+}
+
+.ts-card.is-alert .ts-card__value {
+  color: var(--danger);
+}
+
+// ---- 总览：两栏 --------------------------------------------------------
+
+.ts-columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(20em, 1fr));
+  gap: 0 2em;
+}
+
+// ---- 条形图 ------------------------------------------------------------
+//
+// 宽度由内联 `style="width: X%"` 给出（见 admin-overview.gjs 里的 `barWidth`）。
+// 所以 `.ts-bar__fill` 必须是 block —— 行内元素上的 width 不生效，
+// 而「条形永远是零宽」看起来像「这个分类没有数据」，不像一个 bug。
+
+.ts-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45em;
+}
+
+.ts-bar {
+  display: grid;
+  grid-template-columns: minmax(6em, 10em) 1fr auto;
+  align-items: center;
+  gap: 0.6em;
+  font-size: var(--font-down-1);
+
+  &--plain {
+    grid-template-columns: 1fr auto;
+  }
+
+  &--inline {
+    grid-template-columns: 1fr auto;
+    min-width: 8em;
+  }
+}
+
+.ts-bar__label {
+  color: var(--primary-medium);
+  overflow-wrap: anywhere;
+}
+
+.ts-bar__track {
+  display: block;
+  width: 100%;
+  height: 6px;
+  overflow: hidden;
+  background: var(--primary-low);
+  border-radius: 999px;
+}
+
+.ts-bar__fill {
+  display: block;
+  height: 100%;
+  background: var(--tertiary);
+  border-radius: inherit;
+}
+
+.ts-bar__value {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+// ---- 总览：按时 / 超时 -------------------------------------------------
+
+.ts-split {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12em, 1fr));
+  gap: 1em;
+}
+
+.ts-split__part {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3em;
+
+  // 条形跟随所在块的语义色，而不是统一的 --tertiary：
+  // 「按时」和「超时」并排出现时，同色的两条没有任何信息量。
+  .ts-bar__fill {
+    background: currentColor;
+  }
+
+  &.is-good {
+    color: var(--success);
+  }
+
+  &.is-bad {
+    color: var(--danger);
+  }
+}
+
+.ts-split__label {
+  font-size: var(--font-down-1);
+  font-weight: 600;
+}
+
+.ts-split__value {
+  font-size: var(--font-up-2);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+// ---- 总览：员工负载 ----------------------------------------------------
+
+.ts-load {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ts-load__item {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1em;
+  padding: 0.4em 0;
+  border-bottom: 1px solid var(--primary-low);
+
+  &:last-child {
+    border-bottom: 0;
+  }
+}
+
+.ts-load__count {
+  font-size: var(--font-down-1);
+  color: var(--primary-medium);
+  white-space: nowrap;
+}
+
+// ---- 表格里的补充状态 --------------------------------------------------
+
+.ts-cell.is-alert {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+.ts-dept-name {
+  display: block;
+  font-weight: 600;
+}
+
+// `.ts-pill` 的底色与边框来自用户侧样式表；这里只给它两种新语义。
+.ts-pill.is-enabled {
+  color: var(--success);
+}
+
+.ts-pill.is-disabled {
+  color: var(--primary-low-mid);
+  border-style: dashed;
+}
+
+// 停用的部门整行降级，但**不禁用** —— 编辑按钮仍要能点，
+// 因为「停用之后想改回启用」正是最常见的操作。
+.ts-table__row.is-disabled td {
+  color: var(--primary-medium);
+}
+
+// ---- 部门管理：行内确认 ------------------------------------------------
+//
+// 刻意不用 window.confirm()：它在沙箱 iframe 与部分嵌入场景下会被浏览器直接
+// 拦掉（返回 false），表现是「点了删除没反应」，而且不报错。行内两段式确认
+// 没有这个失败模式，也不需要为「确定/取消」再发明两个语言键 ——
+// 问题文案用 delete_confirm，两个按钮复用 delete 与 cancel。
+
+.ts-confirm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4em;
+  min-width: 16em;
+}
+
+.ts-confirm__text {
+  flex: 1 1 100%;
+  font-size: var(--font-down-1);
+  color: var(--danger);
+}
+
+.ts-row-actions {
+  display: flex;
+  gap: 0.35em;
+  white-space: nowrap;
+}
+
+// ---- 部门管理：表单 ----------------------------------------------------
+
+.ts-form--department {
+  max-width: 52em;
+  margin-bottom: 1.5em;
+}
+
+.ts-notice {
+  margin: 0 0 1em;
+  padding: 0.5em 0.75em;
+  font-size: var(--font-down-1);
+  color: var(--success);
+  border: 1px solid var(--success);
+  border-radius: 4px;
+}
+
+// ---- 窄屏 --------------------------------------------------------------
+
+@media (max-width: 700px) {
+  .ts-bar {
+    grid-template-columns: minmax(5em, 7em) 1fr auto;
+  }
+
+  .ts-tab {
+    padding: 0.45em 0.7em;
+  }
+
+  .ts-row-actions,
+  .ts-confirm {
+    min-width: 0;
+  }
+}

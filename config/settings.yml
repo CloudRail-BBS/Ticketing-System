@@ -1,0 +1,171 @@
+# Everything lives under `plugins:` on purpose.
+#
+# Ownership of a setting comes from the plugin DIRECTORY name (core's
+# `app/models/site_setting.rb` loads each `plugins/*/config/settings.yml` and
+# tags every entry with `file.split("/")[-3]`), NOT from this top-level key.
+# The key only selects the /admin/site_settings category, and `plugins:` is the
+# generic "Plugins" bucket that needs no locale entry. Any other key creates a
+# dedicated category and REQUIRES a matching label under
+# `admin_js.admin.site_settings.categories`, or the admin nav renders a raw key.
+plugins:
+  ticketing_system_enabled:
+    # Defaults to true so the page works immediately after install. The plugin
+    # adds its own pages and tables and changes nothing about existing topics or
+    # posts, so there is no behaviour to opt into.
+    #
+    # This default only applies while no value has been stored. Once the setting
+    # has been toggled, the stored value wins and changing the default here does
+    # nothing — check /admin/site_settings/category/plugins if the page still
+    # does not appear.
+    default: true
+    client: true
+
+  ticketing_system_staff_groups:
+    # Who counts as staff for tickets. `group_list` gives the admin UI a group
+    # picker; admins always count as staff regardless of this list, so a forum
+    # that leaves it empty still has working staff access.
+    default: "staff"
+    type: group_list
+    client: true
+
+  ticketing_system_show_nav_link:
+    # Adds the ticket link to the sidebar's Community section AND to the header
+    # navigation bar. Both entry points are created by
+    # assets/javascripts/discourse/initializers/ticketing-system.js, which is
+    # where the two plugin APIs are called.
+    #
+    # Both are hidden while the plugin is disabled and for anonymous visitors:
+    # every ticket page requires a signed-in user, so a link an anonymous visitor
+    # can click only leads to a "please sign in" page.
+    default: true
+    client: true
+
+  ticketing_system_unread_badge:
+    # Shows the unread ticket count on the sidebar link.
+    #
+    # It is NOT shown on the header navigation item, and that is a limitation
+    # rather than a choice: `addNavigationBarItem` renders a fixed `displayName`
+    # and exposes no count hook, so a badge there would mean shipping a custom
+    # navigation component. The sidebar link gets one because
+    # `BaseCommunitySectionLink` — the class `addCommunitySectionLink` hands you —
+    # has a `badgeText` getter to override.
+    #
+    # The count comes from the same payload the ticket list uses, so it is
+    # accurate after any write. It is fetched once per page load.
+    default: true
+    client: true
+
+  ticketing_system_default_priority:
+    default: "normal"
+    type: enum
+    choices:
+      - "low"
+      - "normal"
+      - "high"
+      - "urgent"
+    client: true
+
+  ticketing_system_allow_requester_priority:
+    # When false, only staff may change a ticket's priority.
+    default: true
+    client: true
+
+  ticketing_system_allow_requester_close:
+    default: true
+    client: true
+
+  ticketing_system_allow_requester_reopen:
+    default: true
+    client: true
+
+  ticketing_system_allow_internal_notes:
+    # Internal notes are never visible to the requester. Turning this off hides
+    # the composer for staff too; existing notes stay in the database.
+    default: true
+    client: true
+
+  ticketing_system_title_min_length:
+    default: 4
+    min: 1
+    max: 50
+    client: true
+
+  ticketing_system_title_max_length:
+    default: 120
+    min: 10
+    max: 255
+    client: true
+
+  ticketing_system_body_max_length:
+    default: 20000
+    min: 1000
+    max: 100000
+    client: true
+
+  ticketing_system_max_open_per_user:
+    default: 10
+    min: 1
+    max: 200
+    client: false
+
+  ticketing_system_create_per_hour:
+    # Enforced with core's RateLimiter, keyed per user.
+    default: 5
+    min: 1
+    max: 100
+    client: false
+
+  ticketing_system_reply_per_hour:
+    default: 30
+    min: 1
+    max: 500
+    client: false
+
+  ticketing_system_first_response_hours:
+    # Used to compute the "first response due" deadline on a ticket. This plugin
+    # deliberately ships no background job: the deadline is derived at read time
+    # from `created_at`, so there is nothing to schedule and nothing to drift.
+    default: 24
+    min: 1
+    max: 720
+    client: true
+
+  ticketing_system_resolution_hours:
+    default: 72
+    min: 1
+    max: 2160
+    client: true
+
+  ticketing_system_list_page_size:
+    default: 20
+    min: 5
+    max: 100
+    client: true
+
+  # NO ATTACHMENT SETTINGS ON PURPOSE.
+  #
+  # There is no `ticketing_system_max_attachments` or
+  # `ticketing_system_allowed_upload_extensions` here, because this version
+  # stores no uploads at all: a message is text only. Adding the settings before
+  # the feature would put two live controls in /admin/site_settings that change
+  # nothing, and an admin who narrows the extension list would believe they had
+  # restricted what can be posted.
+  #
+  # When uploads do land, the association must go through core's
+  # `UploadReference` and the payload must be built with `UploadSerializer`
+  # rather than a hand-rolled hash: `UploadSerializer#url` is where the
+  # `secure_uploads` rewrite to /secure-uploads/… happens, and a hash built by
+  # hand returns the raw storage path, which the browser cannot fetch on a forum
+  # with secure uploads enabled. See the README's "Not implemented" section.
+
+  ticketing_system_notify_staff:
+    default: true
+    client: false
+
+  ticketing_system_notify_requester:
+    default: true
+    client: false
+
+  ticketing_system_notify_assignee:
+    default: true
+    client: false

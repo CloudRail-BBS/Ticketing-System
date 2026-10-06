@@ -1,0 +1,262 @@
+# 客户端文案（简体中文）。
+#
+# 键集必须与 client.en.yml 完全一致：前端只会做 `i18n("ticketing_system.…")`
+# 这一种查询，缺一个键就会在界面上直接渲染成
+# `[zh_CN.ticketing_system.…]` 这样的方括号串——看到方括号就说明是这里漏了键。
+#
+# `js:` 这层包装是必需的。客户端文件会被合并进 JS bundle，由 `I18n` 从
+# `js` 命名空间下读取；少了这层包装，所有客户端查询都会落空，而服务端查询却
+# 照常工作，症状非常具有迷惑性。
+#
+# 文件名必须是 `client<任意后缀>.<locale>.yml`——核心用
+# `Dir["plugins/*/config/locales/client*.#{locale}.yml"]` 收集客户端 bundle。
+zh_CN:
+  js:
+    ticketing_system:
+      title: "工单"
+      nav_label: "工单"
+      heading: "支持工单"
+      description: "提交一张工单，支持团队会尽快回复你。"
+      loading: "正在加载工单…"
+      count:
+        one: "%{count} 张工单"
+        other: "%{count} 张工单"
+
+      # 与 server.zh_CN.yml 重复是刻意的：两份文件由两个不同的 I18n 实例读取
+      # （服务端 `I18n.t` 与客户端 `i18n`），只在服务端文件里存在的键会在浏览器里
+      # 渲染成原始键名。客户端需要它们是因为通知渲染器只拿到一个裸状态名
+      # （`"resolved"`），没有别的办法把它变成人话。
+      status:
+        open: "待处理"
+        in_progress: "处理中"
+        pending: "等待用户回复"
+        resolved: "已解决"
+        closed: "已关闭"
+
+      priority:
+        low: "低"
+        normal: "普通"
+        high: "高"
+        urgent: "紧急"
+
+      empty:
+        mine: "你还没有工单。"
+        all: "当前没有工单。"
+        filtered: "没有符合筛选条件的工单。"
+        hint: "试着清掉一个筛选条件，或者新建一张工单。"
+
+      filters:
+        scope: "范围"
+        status: "状态"
+        priority: "优先级"
+        department: "部门"
+        sort: "排序"
+        search: "搜索"
+        search_placeholder: "搜索标题、编号、用户或内容"
+        all: "全部"
+        any: "不限"
+        clear: "清除"
+        unread_only: "只看未读"
+        active_filters: "已筛选"
+
+      scopes:
+        mine: "我的工单"
+        all: "全部工单"
+        unassigned: "未分配"
+        assigned_to_me: "分配给我"
+        active: "处理中"
+
+      sorts:
+        recent: "最近有动态"
+        oldest: "最久无动态"
+        priority: "按优先级"
+        created: "最新创建"
+
+      columns:
+        ticket: "工单"
+        requester: "提交人"
+        assignee: "受理人"
+        department: "部门"
+        status: "状态"
+        priority: "优先级"
+        activity: "最近动态"
+        messages: "消息数"
+
+      list:
+        prev: "上一页"
+        next: "下一页"
+        page_info: "第 %{page} / %{pages} 页"
+
+      ticket:
+        number: "工单 %{number}"
+        unassigned: "未分配"
+        no_department: "未指定部门"
+        unread: "未读"
+        staff_badge: "员工"
+        internal_badge: "内部"
+        you: "你"
+
+      new:
+        heading: "新建工单"
+        description: "描述一下遇到的问题，支持团队会接手处理。"
+        title_label: "标题"
+        title_placeholder: "用一句话概括问题"
+        body_label: "详细说明"
+        body_placeholder: "发生了什么、你期望的结果，以及你已经尝试过哪些办法。"
+        department_label: "部门"
+        department_any: "不指定部门"
+        priority_label: "优先级"
+        submit: "提交工单"
+        submitting: "正在提交…"
+        created: "工单已创建。"
+        counter: "%{count} / %{max} 字符"
+
+      detail:
+        back: "返回工单列表"
+        conversation: "对话"
+        timeline: "操作记录"
+        no_messages: "还没有消息。"
+        no_events: "暂无操作记录。"
+        reply_placeholder: "输入回复内容…"
+        internal_placeholder: "写下只有员工可见的内部备注…"
+        closed_notice: "该工单已关闭。员工回复即可重新打开。"
+        first_response: "首次响应"
+        resolution: "解决时限"
+        due_at: "截止 %{time}"
+        sla:
+          met: "已达成"
+          on_track: "正常"
+          due_soon: "即将到期"
+          breached: "已超时"
+
+      actions:
+        reply: "回复"
+        send: "发送"
+        sending: "发送中…"
+        mode_public: "公开回复"
+        mode_internal: "内部备注"
+        mode_internal_hint: "内部备注只有员工可见。"
+        close: "关闭工单"
+        reopen: "重新打开"
+        resolve: "标记为已解决"
+        start: "开始处理"
+        wait_for_requester: "等待用户回复"
+        assign_to_me: "分配给我"
+        unassign: "取消分配"
+        refresh: "刷新"
+        retry: "重试"
+
+      fields:
+        status: "状态"
+        priority: "优先级"
+        department: "部门"
+        assignee: "受理人"
+        requester: "提交人"
+        created: "创建时间"
+        last_activity: "最近动态"
+
+      errors:
+        generic: "出了点问题，请重试。"
+        load_failed: "无法加载工单。"
+        detail_failed: "无法加载该工单。"
+        create_failed: "无法创建工单。"
+        reply_failed: "消息发送失败。"
+        action_failed: "无法应用该变更。"
+        disabled: "工单系统当前已停用。"
+        sign_in: "请先登录后再使用工单。"
+        body_required: "请先填写内容。"
+        title_required: "请为工单填写标题。"
+        title_too_short: "标题至少需要 %{min} 个字符。"
+
+      admin:
+        title: "工单系统"
+        description: "工单队列、部门与服务时限目标。"
+        tab_overview: "总览"
+        tab_departments: "部门"
+        disabled_hint: "工单系统当前已停用。请在下方设置中打开「ticketing_system_enabled」以开始接收工单。"
+        settings_hint: "相关设置位于本页下方的设置区域。"
+
+        overview:
+          loading: "正在加载统计数据…"
+          failed: "无法加载统计数据。"
+          totals: "队列"
+          all_tickets: "全部工单"
+          active: "处理中"
+          unassigned: "未分配"
+          in_progress: "处理中"
+          overdue: "首次响应超时"
+          by_status: "按状态"
+          by_priority: "按优先级"
+          by_department: "按部门"
+          first_response: "首次响应"
+          average: "平均"
+          median: "中位数"
+          on_time: "按时"
+          breached: "超时"
+          sample_size: "%{count} 张已响应工单"
+          no_sample: "还没有已响应的工单。"
+          activity: "动态"
+          created_today: "今日新建"
+          created_week: "本周新建"
+          created_month: "本月新建"
+          resolved_week: "本周解决"
+          resolved_month: "本月解决"
+          closed_month: "本月关闭"
+          load: "员工负载"
+          no_load: "当前没有已分配的工单。"
+          assigned_count: "已分配 %{count} 张"
+          open_tickets: "未结工单"
+          duration_seconds: "%{value} 秒"
+          duration_minutes: "%{value} 分"
+          duration_hours: "%{value} 小时"
+          duration_days: "%{value} 天"
+
+        departments:
+          heading: "部门"
+          description: "部门把工单路由到指定用户组，并可以设置自己的服务时限目标。"
+          new: "新建部门"
+          edit: "编辑"
+          delete: "删除"
+          cancel: "取消"
+          save: "保存"
+          saving: "保存中…"
+          name: "名称"
+          slug: "标识"
+          slug_hint: "用于筛选和链接。留空时会根据名称自动生成。"
+          description_field: "描述"
+          position: "排序"
+          enabled: "已启用"
+          disabled: "已停用"
+          staff_group: "由哪个用户组处理"
+          staff_group_hint: "留空表示任何员工都可以受理该部门的工单。"
+          staff_group_any: "任意员工"
+          first_response_hours: "首次响应目标（小时）"
+          resolution_hours: "解决目标（小时）"
+          default_priority: "默认优先级"
+          empty: "还没有部门。没有部门时工单同样可以正常使用。"
+          failed: "无法加载部门列表。"
+          save_failed: "部门保存失败。"
+          name_required: "请填写部门名称。"
+          delete_confirm: "确定删除「%{name}」部门？"
+          delete_in_use: "该部门下仍有工单，请改为停用它。"
+          created: "部门已创建。"
+          updated: "部门已保存。"
+          deleted: "部门已删除。"
+
+      # 通知条目的文案。
+      #
+      # 这里只有**短语**，不含 `%{username}`。通知条目会把发言人名字渲染在前面的
+      # 一个 label 里，description 里再写一遍就会变成
+      # 「alice alice 提交了一张工单」。见
+      # assets/javascripts/discourse/lib/notification-type.js。
+      #
+      # `%{status}` 是唯一需要的占位符，且只有 status_changed 用得到。
+      # 渲染器总会传一个 `status`（事件不带时传空串），因为 Discourse 的 i18n
+      # 把 undefined 视为「缺少插值参数」，会渲染成字面的
+      # "[missing %{status} value]"。
+      notifications:
+        new_ticket: "提交了一张工单"
+        requester_reply: "回复了一张工单"
+        staff_reply: "回复了你的工单"
+        assigned: "把一张工单分配给了你"
+        status_changed: "把工单标记为 %{status}"

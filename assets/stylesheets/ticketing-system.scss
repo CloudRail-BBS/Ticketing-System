@@ -1,0 +1,863 @@
+// 工单系统 —— 用户侧样式。
+//
+// 只用 CSS 自定义属性，不用任何核心 SCSS 变量或 mixin（`$primary`、
+// `dark-light-choose()` 之类）。原因不是风格偏好：
+//
+//   1. 配色方案在 Discourse 里是运行时数据。核心把当前配色输出成
+//      `:root { --primary: …; --secondary: …; }`，暗色方案会重新赋值，
+//      于是 `var(--primary)` 自动跟着主题走 —— 而 `$primary` 是**编译期**
+//      常量，插件样式表在编译时拿不到它，写错了就是编译失败。
+//   2. 这些变量的定义位置在核心内部被搬过好几次。引用变量名是稳定的公开契约，
+//      引用 SCSS 变量名不是。
+//
+// 文件路径必须是 `assets/stylesheets/…`，因为 plugin.rb 里的
+// `register_asset "stylesheets/ticketing-system.scss"` 是相对 `assets/` 解析的。
+// 而且**必须显式注册**：assets/stylesheets 下的文件不会被自动引入。
+
+// ---- 容器 --------------------------------------------------------------
+
+.ts-app {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 1.5em 1em 3em;
+}
+
+.ts-app__nav {
+  margin-bottom: 1em;
+}
+
+.ts-app__nav-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35em;
+  font-size: var(--font-down-1);
+  color: var(--primary-medium);
+
+  &:hover,
+  &.active {
+    color: var(--tertiary);
+  }
+}
+
+// 图标：所有内联 SVG 都带这个类。`stroke: currentColor` 是关键 ——
+// 图标继承所在元素的文字颜色，于是同一个 path 数据在 pill、按钮、错误态里
+// 自动取到正确的颜色，不需要为每种用法准备一份图标。
+.ts-icon {
+  display: inline-block;
+  flex: 0 0 auto;
+  vertical-align: -0.15em;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.ts-muted {
+  color: var(--primary-medium);
+}
+
+// 按钮里的文字标签：窄屏下隐藏，只留图标。
+.ts-btn-text {
+  margin-left: 0.35em;
+}
+
+// ---- 页头 --------------------------------------------------------------
+
+.ts-page__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1em;
+  margin-bottom: 1em;
+}
+
+.ts-page__title {
+  margin: 0 0 0.25em;
+  font-size: var(--font-up-3);
+  line-height: 1.2;
+}
+
+.ts-page__subtitle {
+  margin: 0;
+  color: var(--primary-medium);
+  max-width: 60ch;
+}
+
+.ts-page__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5em;
+}
+
+// 标题左边的说明块。`min-width: 0` 是给 flex 用的：没有它，一个长标题会把
+// 右侧的按钮组挤出容器，而不是自己换行。
+.ts-page__intro {
+  min-width: 0;
+}
+
+// 标题后面的未读计数徽标。
+//
+// 用 `vertical-align: middle` + 稍小的字号而不是 `position: absolute`：
+// 标题会换行，绝对定位的徽标在第二行时会压到文字上。
+.ts-count-badge {
+  display: inline-block;
+  min-width: 1.6em;
+  padding: 0 0.45em;
+  margin-left: 0.4em;
+  font-size: var(--font-down-1);
+  font-weight: 600;
+  line-height: 1.6;
+  text-align: center;
+  vertical-align: middle;
+  color: var(--secondary);
+  background: var(--tertiary);
+  border-radius: 999px;
+}
+
+// ---- 表单控件 ----------------------------------------------------------
+//
+// 下拉框与输入框是原生元素，不是核心的 DSelect / DButton。
+// 这样做的代价是样式得自己写，好处是少一类「导入路径解析不了 → 整个插件
+// bundle 变成一行 throw」的失败模式，而那种失败没有任何可用的报错。
+
+.ts-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.75em 1em;
+  padding: 0.85em 1em;
+  margin-bottom: 1em;
+  background: var(--secondary);
+  border: 1px solid var(--primary-low);
+  border-radius: 8px;
+}
+
+.ts-toolbar__clear {
+  margin-left: auto;
+}
+
+.ts-field {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 0.25em;
+  min-width: 0;
+
+  &--grow {
+    flex: 1 1 14em;
+  }
+
+  &--block {
+    display: flex;
+    margin-bottom: 1em;
+  }
+
+  &--inline {
+    flex-direction: row;
+    align-items: center;
+    gap: 0.5em;
+  }
+}
+
+.ts-field__label {
+  font-size: var(--font-down-1);
+  font-weight: 600;
+  color: var(--primary-medium);
+  white-space: nowrap;
+}
+
+.ts-field__hint {
+  font-size: var(--font-down-2);
+  color: var(--primary-medium);
+
+  &.is-error {
+    color: var(--danger);
+  }
+}
+
+.ts-select,
+.ts-input,
+.ts-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.4em 0.6em;
+  font-size: var(--font-0);
+  font-family: inherit;
+  color: var(--primary);
+  background: var(--secondary);
+  border: 1px solid var(--primary-low);
+  border-radius: 4px;
+
+  &:focus {
+    outline: none;
+    border-color: var(--tertiary);
+  }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+}
+
+.ts-textarea {
+  resize: vertical;
+  min-height: 6em;
+  line-height: 1.5;
+}
+
+.ts-select {
+  min-width: 8em;
+  cursor: pointer;
+}
+
+// 输入框里嵌一个搜索图标。用绝对定位而不是 flex 包裹，
+// 这样 `<input>` 仍是容器里唯一的表单元素，点击行为可预测。
+.ts-input-wrap {
+  position: relative;
+  display: block;
+
+  .ts-icon {
+    position: absolute;
+    top: 50%;
+    left: 0.55em;
+    transform: translateY(-50%);
+    color: var(--primary-medium);
+    pointer-events: none;
+  }
+
+  .ts-input {
+    padding-left: 1.9em;
+  }
+}
+
+.ts-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35em;
+  padding-bottom: 0.45em;
+  font-size: var(--font-0);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+// ---- 表格 --------------------------------------------------------------
+
+.ts-table-wrap {
+  overflow-x: auto;
+  background: var(--secondary);
+  border: 1px solid var(--primary-low);
+  border-radius: 8px;
+}
+
+.ts-table {
+  width: 100%;
+  border-collapse: collapse;
+
+  th,
+  td {
+    padding: 0.6em 0.75em;
+    text-align: left;
+    vertical-align: top;
+  }
+
+  thead th {
+    font-size: var(--font-down-2);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--primary-medium);
+    border-bottom: 1px solid var(--primary-low);
+    white-space: nowrap;
+  }
+
+  tbody tr + tr td {
+    border-top: 1px solid var(--primary-low);
+  }
+
+  tbody tr:hover td {
+    background: var(--primary-very-low);
+  }
+}
+
+// 未读行：左侧一条色带。用 box-shadow 而不是 border-left，
+// 这样不会把整张表的列宽推歪。
+.ts-table__row.is-unread td:first-child {
+  box-shadow: inset 3px 0 0 0 var(--tertiary);
+}
+
+.ts-ticket-link {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.4em;
+  font-weight: 600;
+  color: var(--primary);
+
+  &:hover {
+    color: var(--tertiary);
+  }
+}
+
+.ts-ticket-link__number {
+  font-size: var(--font-down-1);
+  font-family: var(--monospace-font-family, monospace);
+  color: var(--primary-medium);
+}
+
+.ts-ticket-link__title {
+  font-weight: 600;
+}
+
+.ts-ticket-link__excerpt {
+  margin: 0.25em 0 0;
+  font-size: var(--font-down-1);
+  font-weight: 400;
+  color: var(--primary-medium);
+  max-width: 60ch;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.ts-unread-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--tertiary);
+}
+
+// ---- 药丸标签 ----------------------------------------------------------
+
+.ts-pill {
+  display: inline-block;
+  padding: 0.15em 0.5em;
+  font-size: var(--font-down-2);
+  font-weight: 600;
+  line-height: 1.6;
+  white-space: nowrap;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+
+  &--status {
+    &.is-open {
+      color: var(--tertiary);
+    }
+
+    &.is-progress {
+      color: var(--quaternary);
+    }
+
+    &.is-pending {
+      color: var(--primary-medium);
+      border-style: dashed;
+    }
+
+    &.is-resolved {
+      color: var(--success);
+    }
+
+    &.is-closed {
+      color: var(--primary-low-mid);
+    }
+
+    &.is-unknown {
+      color: var(--primary-medium);
+    }
+  }
+
+  &--priority {
+    &.is-urgent {
+      color: var(--danger);
+    }
+
+    &.is-high {
+      color: var(--quaternary);
+    }
+
+    &.is-normal {
+      color: var(--primary-medium);
+    }
+
+    &.is-low {
+      color: var(--primary-low-mid);
+    }
+  }
+
+  &--sla {
+    &.is-met {
+      color: var(--success);
+    }
+
+    &.is-on-track {
+      color: var(--primary-medium);
+    }
+
+    &.is-due-soon {
+      color: var(--quaternary);
+    }
+
+    &.is-breached {
+      color: var(--danger);
+    }
+  }
+}
+
+// ---- 状态块（加载 / 错误 / 空） ----------------------------------------
+
+.ts-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5em;
+  padding: 3em 1em;
+  text-align: center;
+  color: var(--primary-medium);
+  background: var(--secondary);
+  border: 1px solid var(--primary-low);
+  border-radius: 8px;
+
+  p {
+    margin: 0;
+  }
+
+  &.is-error {
+    color: var(--danger);
+    border-color: var(--danger-low, var(--primary-low));
+  }
+}
+
+.ts-state__hint {
+  font-size: var(--font-down-1);
+}
+
+// ---- 分页 --------------------------------------------------------------
+
+.ts-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1em;
+  margin-top: 1em;
+}
+
+.ts-pagination__label {
+  font-size: var(--font-down-1);
+  color: var(--primary-medium);
+}
+
+// ---- 详情页 ------------------------------------------------------------
+
+.ts-detail__back {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35em;
+  margin-bottom: 1em;
+  font-size: var(--font-down-1);
+  color: var(--primary-medium);
+
+  &:hover {
+    color: var(--tertiary);
+  }
+}
+
+.ts-detail__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75em;
+  padding-bottom: 0.75em;
+  border-bottom: 1px solid var(--primary-low);
+}
+
+.ts-detail__heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5em;
+  min-width: 0;
+}
+
+.ts-detail__number {
+  font-family: var(--monospace-font-family, monospace);
+  font-size: var(--font-down-1);
+  color: var(--primary-medium);
+}
+
+.ts-detail__title {
+  margin: 0;
+  font-size: var(--font-up-3);
+  line-height: 1.25;
+}
+
+.ts-detail__badges {
+  display: flex;
+  align-items: center;
+  gap: 0.4em;
+}
+
+// ---- 元数据表 ----------------------------------------------------------
+
+.ts-meta {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(11em, 1fr));
+  gap: 0.75em 1.25em;
+  margin: 1.25em 0;
+  padding: 0;
+}
+
+.ts-meta__item {
+  min-width: 0;
+}
+
+.ts-meta__label {
+  font-size: var(--font-down-2);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--primary-medium);
+}
+
+.ts-meta__value {
+  margin: 0.15em 0 0;
+  overflow-wrap: anywhere;
+}
+
+// ---- SLA ---------------------------------------------------------------
+
+.ts-sla {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75em;
+  margin-bottom: 1.25em;
+}
+
+// 状态色复用 .ts-pill--sla 的色值，但块状展示，因为这里要放截止时间。
+.ts-sla__block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15em;
+  flex: 1 1 12em;
+  padding: 0.6em 0.85em;
+  border: 1px solid currentColor;
+  border-radius: 6px;
+  font-size: var(--font-down-1);
+
+  &.is-met {
+    color: var(--success);
+  }
+
+  &.is-on-track {
+    color: var(--primary-medium);
+  }
+
+  &.is-due-soon {
+    color: var(--quaternary);
+  }
+
+  &.is-breached {
+    color: var(--danger);
+  }
+}
+
+.ts-sla__label {
+  font-weight: 600;
+}
+
+.ts-sla__due {
+  opacity: 0.8;
+}
+
+// ---- 操作栏 ------------------------------------------------------------
+
+.ts-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.75em 1em;
+  padding: 0.85em 1em;
+  margin-bottom: 1.5em;
+  background: var(--primary-very-low);
+  border-radius: 8px;
+}
+
+.ts-actions__group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4em;
+}
+
+.ts-actions__error {
+  flex: 1 0 100%;
+  margin: 0;
+  font-size: var(--font-down-1);
+  color: var(--danger);
+}
+
+// ---- 区块 --------------------------------------------------------------
+
+.ts-section {
+  margin-bottom: 2em;
+}
+
+.ts-section__title {
+  margin: 0 0 0.75em;
+  font-size: var(--font-up-1);
+}
+
+// ---- 对话线程 ----------------------------------------------------------
+
+.ts-thread {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75em;
+  margin-bottom: 1.25em;
+}
+
+.ts-message {
+  padding: 0.75em 1em;
+  background: var(--secondary);
+  border: 1px solid var(--primary-low);
+  border-radius: 8px;
+
+  &.is-staff {
+    border-left: 3px solid var(--tertiary);
+  }
+
+  // 内部备注：虚线边框 + 浅色底，即使扫一眼也不会和公开回复混淆。
+  // 这一点很重要 —— 把内部备注误当成公开回复读，是这类系统最贵的错误。
+  &.is-internal {
+    background: var(--primary-very-low);
+    border-style: dashed;
+    border-left: 3px solid var(--primary-medium);
+  }
+}
+
+.ts-message__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5em;
+  margin-bottom: 0.4em;
+  font-size: var(--font-down-1);
+}
+
+.ts-message__author {
+  font-weight: 600;
+  color: var(--primary);
+}
+
+.ts-message__time {
+  margin-left: auto;
+  color: var(--primary-medium);
+}
+
+.ts-message__body {
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+
+  > :first-child {
+    margin-top: 0;
+  }
+
+  > :last-child {
+    margin-bottom: 0;
+  }
+}
+
+.ts-badge {
+  padding: 0 0.4em;
+  font-size: var(--font-down-2);
+  font-weight: 600;
+  color: var(--primary-medium);
+  background: var(--primary-low);
+  border-radius: 3px;
+
+  &.is-internal {
+    color: var(--secondary);
+    background: var(--primary-medium);
+  }
+}
+
+// ---- 时间线 ------------------------------------------------------------
+
+.ts-timeline {
+  margin: 0;
+  padding: 0 0 0 0.35em;
+  list-style: none;
+  border-left: 2px solid var(--primary-low);
+}
+
+.ts-timeline__item {
+  position: relative;
+  padding: 0 0 0.9em 1em;
+
+  &:last-child {
+    padding-bottom: 0;
+  }
+}
+
+.ts-timeline__dot {
+  position: absolute;
+  top: 0.45em;
+  left: -0.42em;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--primary-low-mid);
+}
+
+.ts-timeline__line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.4em;
+  margin: 0;
+}
+
+.ts-timeline__kind {
+  font-weight: 600;
+}
+
+.ts-timeline__actor,
+.ts-timeline__change {
+  color: var(--primary-medium);
+}
+
+.ts-timeline__change {
+  font-size: var(--font-down-1);
+  font-family: var(--monospace-font-family, monospace);
+}
+
+.ts-timeline__time {
+  font-size: var(--font-down-1);
+  color: var(--primary-medium);
+}
+
+// ---- 回复框 ------------------------------------------------------------
+
+.ts-composer {
+  padding: 1em;
+  background: var(--secondary);
+  border: 1px solid var(--primary-low);
+  border-radius: 8px;
+}
+
+.ts-composer__modes {
+  display: flex;
+  gap: 0.35em;
+  margin-bottom: 0.6em;
+}
+
+.ts-composer__mode-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3em;
+  padding: 0.25em 0.7em;
+  font-size: var(--font-down-1);
+  font-weight: 600;
+  color: var(--primary-medium);
+  background: transparent;
+  border: 1px solid var(--primary-low);
+  border-radius: 999px;
+  cursor: pointer;
+
+  &.is-active {
+    color: var(--tertiary);
+    border-color: var(--tertiary);
+  }
+}
+
+.ts-composer__hint {
+  margin: 0 0 0.5em;
+  font-size: var(--font-down-1);
+  color: var(--primary-medium);
+}
+
+.ts-composer__error {
+  margin: 0.5em 0 0;
+  font-size: var(--font-down-1);
+  color: var(--danger);
+}
+
+.ts-composer__footer {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 0.6em;
+}
+
+.ts-composer__closed {
+  padding: 1em;
+  margin: 0;
+  color: var(--primary-medium);
+  background: var(--primary-very-low);
+  border-radius: 8px;
+}
+
+// ---- 新建表单 ----------------------------------------------------------
+
+.ts-form {
+  max-width: 46em;
+  padding: 1.25em;
+  background: var(--secondary);
+  border: 1px solid var(--primary-low);
+  border-radius: 8px;
+}
+
+.ts-form__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1em;
+  margin-bottom: 1em;
+}
+
+.ts-form__error {
+  margin: 0 0 0.75em;
+  padding: 0.5em 0.75em;
+  font-size: var(--font-down-1);
+  color: var(--danger);
+  background: var(--danger-low, var(--primary-very-low));
+  border-radius: 4px;
+}
+
+.ts-form__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5em;
+}
+
+// ---- 窄屏 --------------------------------------------------------------
+//
+// 表格的次要列在窄屏下藏起来，而不是让它横向滚动。
+// 「受理人 / 部门」在手机上没人会看，而横向滚动会让标题列被挤成一条。
+
+@media (max-width: 700px) {
+  .ts-app {
+    padding: 1em 0.5em 2em;
+  }
+
+  .ts-table__col-assignee,
+  .ts-table__col-department,
+  .ts-table__col-activity {
+    display: none;
+  }
+
+  .ts-detail__title {
+    font-size: var(--font-up-2);
+  }
+
+  .ts-toolbar {
+    gap: 0.6em;
+  }
+
+  .ts-field {
+    flex: 1 1 8em;
+  }
+
+  .ts-btn-text {
+    display: none;
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "name": "ticketing-system",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A self-contained Discourse ticket (work order) system: departments, priorities, assignment, internal notes and a staff inbox.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/CloudRail-BBS/Ticketing-System.git"
+  },
+  "scripts": {
+    "lint": "sh scripts/selftest.sh",
+    "validate": "sh scripts/py.sh scripts/validate.py --verbose",
+    "templates": "sh scripts/py.sh scripts/check-templates.py --verbose",
+    "ruby": "ruby scripts/check-ruby.rb",
+    "mutation": "sh scripts/py.sh scripts/selftest.py"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
